@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ODD or EVEN</title>
+<meta name="description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets. A new puzzle every day.">
+
+<!-- Open Graph (Signal, iMessage, Slack, Discord, Facebook) -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="ODD or EVEN">
+<meta property="og:description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets.">
+<meta property="og:site_name" content="Odd or Even">
+
+<!-- Twitter / X -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="ODD or EVEN">
+<meta name="twitter:description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets.">
+
+<!-- Theme color for mobile browser chrome -->
+<meta name="theme-color" content="#0e0e10">
+
+<!-- Inline SVG favicon — a simple O|E mark in the brand colors -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230e0e10'/%3E%3Crect width='16' height='32' fill='%23ff5b3a'/%3E%3Crect x='16' width='16' height='32' fill='%234ad6c0'/%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e10;
+    --ink: #f5f1e8;
+    --paper: #f5f1e8;
+    --odd: #ff5b3a;     /* warm red-orange */
+    --even: #4ad6c0;    /* cool teal */
+    --dim: #6a6a72;
+    --rule: #1c1c20;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+
+  /* subtle grain */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    background-image:
+      radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px),
+      radial-gradient(rgba(255,255,255,0.4) 1px, transparent 1px);
+    background-size: 3px 3px, 7px 7px;
+    background-position: 0 0, 1px 2px;
+    mix-blend-mode: screen;
+    z-index: 100;
+  }
+
+  .app {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* ============ SCREENS ============ */
+  .screen {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    padding: 24px;
+  }
+  .screen.active { display: flex; }
+
+  /* ============ START ============ */
+  #start-screen {
+    justify-content: space-between;
+    text-align: left;
+  }
+
+  .title-block {
+    margin-top: 12vh;
+  }
+
+  .title {
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: clamp(64px, 18vw, 120px);
+    line-height: 0.85;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+  .title .or {
+    color: var(--dim);
+    font-weight: 700;
+    font-size: 0.55em;
+    display: inline-block;
+    transform: translateY(-0.15em);
+    margin: 0 0.1em;
+  }
+  .title .odd-word { color: var(--odd); }
+  .title .even-word { color: var(--even); }
+
+  .tagline {
+    margin-top: 28px;
+    font-size: 13px;
+    color: var(--dim);
+    max-width: 280px;
+    line-height: 1.5;
+  }
+  .tagline strong { color: var(--ink); font-weight: 700; }
+
+  .start-btn {
+    background: var(--paper);
+    color: var(--bg);
+    border: none;
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: 32px;
+    letter-spacing: 0.04em;
+    padding: 24px;
+    cursor: pointer;
+    width: 100%;
+    text-transform: uppercase;
+    transition: transform 0.08s ease;
+    margin-bottom: 12px;
+  }
+  .start-btn:active { transform: scale(0.98); }
+
+  .start-foot {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .mode-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    margin-bottom: 12px;
+    border: 1px solid var(--rule);
+  }
+  .mode-btn {
+    background: transparent;
+    color: var(--dim);
+    border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.25em;
+    padding: 14px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.15s ease;
+  }
+  .mode-btn.active {
+    background: var(--ink);
+    color: var(--bg);
+  }
+  .mode-btn:not(.active):hover {
+    color: var(--ink);
+  }
+
+  /* ============ PLAY ============ */
+  #play-screen { padding: 0; }
+
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px 12px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .hud-item { display: flex; flex-direction: column; gap: 2px; }
+  .hud-label {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .hud-value {
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: 28px;
+    line-height: 1;
+  }
+  .hud-value.score { text-align: right; }
+  #timer-value.warn { color: var(--odd); animation: pulse 0.8s ease-in-out infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .timer-bar {
+    height: 3px;
+    background: var(--rule);
+    margin: 0 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .timer-bar-fill {
+    position: absolute;
+    inset: 0 0 0 0;
+    background: var(--ink);
+    transform-origin: left;
+    transform: scaleX(1);
+  }
+
+  .question-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    position: relative;
+  }
+
+  .question {
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: clamp(72px, 22vw, 140px);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    text-align: center;
+    transition: transform 0.12s ease, opacity 0.12s ease;
+  }
+  .question.flash-correct { animation: correctFlash 0.25s ease; }
+  .question.flash-wrong { animation: wrongFlash 0.25s ease; }
+  @keyframes correctFlash {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.08); color: var(--even); }
+    100% { transform: scale(1); }
+  }
+  @keyframes wrongFlash {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); color: var(--odd); }
+    75% { transform: translateX(8px); color: var(--odd); }
+  }
+
+  .feedback-marker {
+    position: absolute;
+    top: 30px;
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: all 0.2s ease;
+  }
+  .feedback-marker.show { opacity: 1; transform: translateY(0); }
+  .feedback-marker.correct { color: var(--even); }
+  .feedback-marker.wrong { color: var(--odd); }
+
+  .swap-warning {
+    position: absolute;
+    bottom: 30px;
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--dim);
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .swap-warning.show { opacity: 1; }
+
+  .answer-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    height: 30vh;
+    min-height: 180px;
+  }
+  .answer-btn {
+    border: none;
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: clamp(36px, 10vw, 56px);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: transform 0.06s ease;
+    color: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+  .answer-btn:active { transform: scale(0.97); }
+  .btn-odd { background: var(--odd); }
+  .btn-even { background: var(--even); }
+
+  /* ============ END ============ */
+  #end-screen { justify-content: space-between; }
+
+  .end-header {
+    margin-top: 8vh;
+  }
+  .end-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .end-headline {
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: clamp(42px, 11vw, 72px);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+  }
+  .end-footer {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-top: 14px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 32px;
+    padding: 20px 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .stat-label {
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .stat-value {
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: 26px;
+    line-height: 1;
+  }
+
+  .grid-section {
+    margin-top: 24px;
+  }
+  .emoji-grid {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    line-height: 1.15;
+    letter-spacing: 1px;
+    word-break: keep-all;
+    white-space: nowrap;
+  }
+
+  .end-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .action-btn {
+    border: 1px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: 18px;
+    letter-spacing: 0.05em;
+    padding: 18px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.1s ease;
+  }
+  .action-btn:active { transform: scale(0.98); }
+  .action-btn.primary {
+    background: var(--paper);
+    color: var(--bg);
+    border-color: var(--paper);
+  }
+  .action-btn.copied {
+    background: var(--even);
+    color: var(--bg);
+    border-color: var(--even);
+  }
+
+  .come-back {
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    line-height: 1.5;
+  }
+
+  /* tier indicator (subtle) */
+  .tier-indicator {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+  }
+  .tier-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--rule);
+    transition: background 0.2s;
+  }
+  .tier-dot.active { background: var(--ink); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- START SCREEN -->
+  <section class="screen active" id="start-screen">
+    <div class="title-block">
+      <div class="title">
+        <div class="odd-word">ODD</div>
+        <span class="or">or</span>
+        <div class="even-word">EVEN</div>
+      </div>
+    </div>
+    <div>
+      <div class="mode-toggle" role="tablist" aria-label="Game mode">
+        <button class="mode-btn active" id="mode-daily" data-mode="daily">Daily</button>
+        <button class="mode-btn" id="mode-practice" data-mode="practice">Practice</button>
+      </div>
+      <button class="start-btn" id="start-btn">Start →</button>
+      <div class="start-foot">
+        <span id="foot-left">No. <span id="daily-number">—</span></span>
+        <span>:60</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLAY SCREEN -->
+  <section class="screen" id="play-screen">
+    <div class="hud">
+      <div class="hud-item">
+        <span class="hud-label">Time</span>
+        <span class="hud-value" id="timer-value">60</span>
+      </div>
+      <div class="hud-item">
+        <span class="hud-label" style="text-align:right">Score</span>
+        <span class="hud-value score" id="score-value">0</span>
+      </div>
+    </div>
+    <div class="timer-bar"><div class="timer-bar-fill" id="timer-fill"></div></div>
+
+    <div class="question-area">
+      <div class="tier-indicator" id="tier-indicator">
+        <div class="tier-dot active"></div>
+        <div class="tier-dot"></div>
+        <div class="tier-dot"></div>
+        <div class="tier-dot"></div>
+        <div class="tier-dot"></div>
+        <div class="tier-dot"></div>
+      </div>
+      <div class="feedback-marker" id="feedback"></div>
+      <div class="question" id="question">7</div>
+      <div class="swap-warning" id="swap-warning">⚠ buttons may swap</div>
+    </div>
+
+    <div class="answer-row" id="answer-row">
+      <button class="answer-btn btn-odd" data-answer="odd" id="btn-left">Odd</button>
+      <button class="answer-btn btn-even" data-answer="even" id="btn-right">Even</button>
+    </div>
+  </section>
+
+  <!-- END SCREEN -->
+  <section class="screen" id="end-screen">
+    <div class="end-header">
+      <div class="end-eyebrow">Time's up</div>
+      <div class="end-headline" id="end-headline">You made row 1!</div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-label">Score</div>
+          <div class="stat-value" id="stat-score">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Correct</div>
+          <div class="stat-value" id="stat-correct">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Wrong</div>
+          <div class="stat-value" id="stat-wrong">0</div>
+        </div>
+      </div>
+
+      <div class="grid-section">
+        <div class="emoji-grid" id="emoji-grid">·····</div>
+        <div class="end-footer" id="end-footer">ODD or EVEN</div>
+      </div>
+    </div>
+
+    <div class="end-actions" id="end-actions-row">
+      <button class="action-btn" id="again-btn">Again</button>
+      <button class="action-btn primary" id="share-btn">Share</button>
+    </div>
+    <div class="come-back" id="come-back" hidden>
+      Come back for a new Odd or Even tomorrow!
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  // ============ STATE ============
+  const state = {
+    score: 0,
+    correct: 0,
+    wrong: 0,
+    streak: 0,
+    bestStreak: 0,
+    timeLeft: 60,
+    history: [],          // array of true/false, every answer this run
+    fullHistory: [],      // every answer for stats
+    currentAnswer: null,  // 'odd' | 'even'
+    swapped: false,
+    timerInterval: null,
+    startTime: 0,
+    mode: 'daily',        // 'daily' | 'practice'
+    rng: Math.random,     // replaced with seeded RNG in daily mode
+    dailyNumber: 0,
+    dailyKey: '',
+    questionIndex: 0,     // 0-based question count for fixed-length bands
+  };
+
+  // ============ SEEDED RNG (mulberry32) ============
+  // Daily mode uses a deterministic sequence so everyone playing today
+  // gets the same questions in the same order.
+  function mulberry32(seed) {
+    return function() {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = seed;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // Hash a string into a 32-bit seed (xfnv1a)
+  function hashSeed(str) {
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+    }
+    return h >>> 0;
+  }
+
+  // Days since launch epoch — used as the daily puzzle number.
+  const LAUNCH_EPOCH = new Date('2026-01-01T00:00:00').getTime();
+  function getDailyKey() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  function getDailyNumber() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.floor((today.getTime() - LAUNCH_EPOCH) / 86400000) + 1;
+  }
+
+  // ============ DOM ============
+  const $ = id => document.getElementById(id);
+  const screens = {
+    start: $('start-screen'),
+    play: $('play-screen'),
+    end: $('end-screen'),
+  };
+  const showScreen = name => {
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[name].classList.add('active');
+  };
+
+  // ============ QUESTION GENERATOR ============
+  // Six bands of varying length. Reaching band 6 is intentionally hard —
+  // it requires ~62 correct answers in 60 seconds. Wrong answers do NOT
+  // advance the questionIndex (see handleAnswer), so depth is genuinely
+  // earned, not stumbled into.
+  //
+  //   B1 (Q  1-8):   single digit → small addition          [ 8 questions]
+  //   B2 (Q  9-20):  add/sub → small multiplication         [12 questions]
+  //   B3 (Q 21-34):  multiplication, doubling → squares     [14 questions]
+  //   B4 (Q 35-48):  squares, division → mixed two-op       [14 questions]
+  //   B5 (Q 49-62):  multi-step → square ± offset           [14 questions]
+  //   B6 (Q 63+):    cubes, big squares, n³ ± c             [elite tier]
+  const BAND_RANGES = [
+    { band: 1, start: 0,  end: 8  },   // Q 1-8
+    { band: 2, start: 8,  end: 20 },   // Q 9-20
+    { band: 3, start: 20, end: 34 },   // Q 21-34
+    { band: 4, start: 34, end: 48 },   // Q 35-48
+    { band: 5, start: 48, end: 62 },   // Q 49-62
+    { band: 6, start: 62, end: Infinity },
+  ];
+  const TOTAL_BANDS = 6;
+  function bandFor(qIndex) {
+    for (const r of BAND_RANGES) {
+      if (qIndex >= r.start && qIndex < r.end) return r.band;
+    }
+    return TOTAL_BANDS;
+  }
+  function subProgress(qIndex) {
+    // 0.0 at the start of the band, ~1.0 by the end
+    const r = BAND_RANGES.find(r => qIndex >= r.start && qIndex < r.end) || BAND_RANGES[BAND_RANGES.length - 1];
+    if (r.end === Infinity) {
+      // Band 6 has no upper bound — ramp over its first 14 questions
+      return Math.min(1, (qIndex - r.start) / 14);
+    }
+    return (qIndex - r.start) / (r.end - r.start);
+  }
+
+  const rand = (min, max) => Math.floor(state.rng() * (max - min + 1)) + min;
+  const pick = arr => arr[Math.floor(state.rng() * arr.length)];
+
+  // Pre-baked clean-division pairs so the result is always whole.
+  const DIVISIONS = [];
+  for (let div = 2; div <= 9; div++) {
+    for (let q = 2; q <= 12; q++) {
+      DIVISIONS.push([div * q, div]);
+    }
+  }
+
+  // Question shape generators — each returns {text, value}. Kept as
+  // small functions so bands can compose them with weighted picks.
+  const shapes = {
+    single: () => {
+      const n = rand(0, 9);
+      return { text: String(n), value: n };
+    },
+    addSmall: () => {
+      const a = rand(2, 9), b = rand(2, 9);
+      return { text: `${a} + ${b}`, value: a + b };
+    },
+    addBig: () => {
+      const a = rand(5, 18), b = rand(5, 18);
+      return { text: `${a} + ${b}`, value: a + b };
+    },
+    subSmall: () => {
+      const a = rand(8, 18), b = rand(1, 7);
+      return { text: `${a} − ${b}`, value: a - b };
+    },
+    subBig: () => {
+      const a = rand(15, 35), b = rand(3, 14);
+      return { text: `${a} − ${b}`, value: a - b };
+    },
+    multSmall: () => {
+      const a = rand(2, 6), b = rand(2, 6);
+      return { text: `${a} × ${b}`, value: a * b };
+    },
+    multBig: () => {
+      const a = rand(3, 9), b = rand(3, 9);
+      return { text: `${a} × ${b}`, value: a * b };
+    },
+    doubling: () => {
+      const n = rand(7, 25);
+      return { text: `2 × ${n}`, value: 2 * n };
+    },
+    sqSmall: () => {
+      const n = rand(3, 7);
+      return { text: `${n}²`, value: n * n };
+    },
+    sqMid: () => {
+      const n = rand(6, 11);
+      return { text: `${n}²`, value: n * n };
+    },
+    sqBig: () => {
+      const n = rand(10, 12);
+      return { text: `${n}²`, value: n * n };
+    },
+    division: () => {
+      const [num, den] = pick(DIVISIONS);
+      return { text: `${num} ÷ ${den}`, value: num / den };
+    },
+    threeOp: () => {
+      const a = rand(10, 25), b = rand(5, 15), c = rand(3, 12);
+      return { text: `${a} + ${b} − ${c}`, value: a + b - c };
+    },
+    multPlus: () => {
+      const a = rand(3, 9), b = rand(2, 9), c = rand(1, 9);
+      return { text: `${a} × ${b} + ${c}`, value: a * b + c };
+    },
+    multMinus: () => {
+      const a = rand(3, 9), b = rand(2, 9), c = rand(1, 9);
+      return { text: `${a} × ${b} − ${c}`, value: a * b - c };
+    },
+    sqOffset: () => {
+      const n = rand(4, 9), c = rand(1, 9);
+      const op = state.rng() < 0.5 ? '+' : '−';
+      return { text: `${n}² ${op} ${c}`, value: op === '+' ? n * n + c : n * n - c };
+    },
+    divOffset: () => {
+      const [num, den] = pick(DIVISIONS);
+      const c = rand(1, 9);
+      const op = state.rng() < 0.5 ? '+' : '−';
+      return { text: `${num} ÷ ${den} ${op} ${c}`, value: op === '+' ? (num / den) + c : (num / den) - c };
+    },
+    tripleMult: () => {
+      const a = rand(2, 6), b = rand(2, 6), c = rand(2, 6);
+      return { text: `${a} × ${b} × ${c}`, value: a * b * c };
+    },
+    cube: () => {
+      const n = rand(2, 5);
+      return { text: `${n}³`, value: n * n * n };
+    },
+    cubeOffset: () => {
+      const n = rand(2, 5), c = rand(1, 9);
+      const op = state.rng() < 0.5 ? '+' : '−';
+      return { text: `${n}³ ${op} ${c}`, value: op === '+' ? n * n * n + c : n * n * n - c };
+    },
+  };
+
+  // Weighted pick from an [{shape, weight}] list.
+  function weightedPick(entries) {
+    const total = entries.reduce((s, e) => s + e.weight, 0);
+    let r = state.rng() * total;
+    for (const e of entries) {
+      r -= e.weight;
+      if (r <= 0) return shapes[e.shape]();
+    }
+    return shapes[entries[entries.length - 1].shape]();
+  }
+
+  // Linearly interpolate between an "easy" and "hard" weight set
+  // based on subProgress (0.0 → 1.0 across the band).
+  function rampWeights(easy, hard, t) {
+    return easy.map((e, i) => ({
+      shape: e.shape,
+      weight: e.weight * (1 - t) + hard[i].weight * t,
+    }));
+  }
+
+  function makeQuestion() {
+    const band = bandFor(state.questionIndex);
+    const t = subProgress(state.questionIndex);
+    let q;
+
+    if (band === 1) {
+      // Single digits → small addition by end of band
+      const easy = [{shape:'single', weight:10}, {shape:'addSmall', weight:0}];
+      const hard = [{shape:'single', weight:3},  {shape:'addSmall', weight:7}];
+      q = weightedPick(rampWeights(easy, hard, t));
+
+    } else if (band === 2) {
+      // Add/sub → small multiplication appears late
+      const easy = [
+        {shape:'addSmall', weight:5}, {shape:'subSmall', weight:5},
+        {shape:'addBig', weight:1},   {shape:'multSmall', weight:0},
+      ];
+      const hard = [
+        {shape:'addSmall', weight:2}, {shape:'subSmall', weight:2},
+        {shape:'addBig', weight:3},   {shape:'multSmall', weight:4},
+      ];
+      q = weightedPick(rampWeights(easy, hard, t));
+
+    } else if (band === 3) {
+      // Multiplication / doubling → squares appear late
+      const easy = [
+        {shape:'multSmall', weight:5}, {shape:'doubling', weight:4},
+        {shape:'multBig', weight:1},   {shape:'sqSmall', weight:0},
+      ];
+      const hard = [
+        {shape:'multSmall', weight:2}, {shape:'doubling', weight:2},
+        {shape:'multBig', weight:3},   {shape:'sqSmall', weight:4},
+      ];
+      q = weightedPick(rampWeights(easy, hard, t));
+
+    } else if (band === 4) {
+      // Squares, division → mixed two-op late
+      const easy = [
+        {shape:'sqSmall', weight:3},  {shape:'sqMid', weight:2},
+        {shape:'division', weight:4}, {shape:'multBig', weight:2},
+        {shape:'threeOp', weight:0},
+      ];
+      const hard = [
+        {shape:'sqSmall', weight:1},  {shape:'sqMid', weight:3},
+        {shape:'division', weight:2}, {shape:'multBig', weight:2},
+        {shape:'threeOp', weight:3},
+      ];
+      q = weightedPick(rampWeights(easy, hard, t));
+
+    } else if (band === 5) {
+      // Multi-step → square/div with offset late
+      const easy = [
+        {shape:'multPlus', weight:4},  {shape:'multMinus', weight:4},
+        {shape:'tripleMult', weight:2},{shape:'sqOffset', weight:0},
+        {shape:'divOffset', weight:0},
+      ];
+      const hard = [
+        {shape:'multPlus', weight:2},  {shape:'multMinus', weight:2},
+        {shape:'tripleMult', weight:2},{shape:'sqOffset', weight:3},
+        {shape:'divOffset', weight:3},
+      ];
+      q = weightedPick(rampWeights(easy, hard, t));
+
+    } else {
+      // Band 6 — cubes lead, with the brutal n³ ± c emerging late.
+      // Big squares and multi-step keep variety so it's not all cubes.
+      const easy = [
+        {shape:'cube', weight:4},      {shape:'sqBig', weight:3},
+        {shape:'multPlus', weight:2},  {shape:'tripleMult', weight:1},
+        {shape:'cubeOffset', weight:0},
+      ];
+      const hard = [
+        {shape:'cube', weight:3},      {shape:'sqBig', weight:2},
+        {shape:'multPlus', weight:1},  {shape:'tripleMult', weight:1},
+        {shape:'cubeOffset', weight:3},
+      ];
+      q = weightedPick(rampWeights(easy, hard, t));
+    }
+
+    return {
+      text: q.text,
+      answer: q.value % 2 === 0 ? 'even' : 'odd',
+      band,
+    };
+  }
+
+  // ============ SWAP LOGIC ============
+  // Swaps unlock at Q31 (band 4) — same moment as the new shapes appear.
+  // Probability rises with progress so endgame feels chaotic.
+  function maybeSwap() {
+    const q = state.questionIndex;
+    if (q < 30) {
+      setSwapped(false);
+      return;
+    }
+    // Ramps from 15% at Q31 to 50% by Q60
+    const p = Math.min(0.5, 0.15 + (q - 30) * 0.012);
+    const shouldSwap = state.rng() < p;
+    setSwapped(shouldSwap);
+  }
+
+  function setSwapped(swap) {
+    state.swapped = swap;
+    const left = $('btn-left');
+    const right = $('btn-right');
+    if (swap) {
+      // visually swap the labels and data-answer values
+      left.textContent = 'Even';
+      left.dataset.answer = 'even';
+      left.classList.remove('btn-odd');
+      left.classList.add('btn-even');
+      right.textContent = 'Odd';
+      right.dataset.answer = 'odd';
+      right.classList.remove('btn-even');
+      right.classList.add('btn-odd');
+    } else {
+      left.textContent = 'Odd';
+      left.dataset.answer = 'odd';
+      left.classList.remove('btn-even');
+      left.classList.add('btn-odd');
+      right.textContent = 'Even';
+      right.dataset.answer = 'even';
+      right.classList.remove('btn-odd');
+      right.classList.add('btn-even');
+    }
+  }
+
+  // ============ GAME FLOW ============
+  function startGame() {
+    state.score = 0;
+    state.correct = 0;
+    state.wrong = 0;
+    state.streak = 0;
+    state.bestStreak = 0;
+    state.timeLeft = 60;
+    state.history = [];
+    state.fullHistory = [];
+    state.swapped = false;
+    state.startTime = Date.now();
+    state.questionIndex = 0;
+
+    // Seed RNG: deterministic for daily mode, random for practice
+    if (state.mode === 'daily') {
+      state.dailyKey = getDailyKey();
+      state.dailyNumber = getDailyNumber();
+      state.rng = mulberry32(hashSeed('odd-or-even-' + state.dailyKey));
+    } else {
+      state.rng = Math.random;
+    }
+
+    setSwapped(false);
+    updateHUD();
+    nextQuestion();
+    showScreen('play');
+
+    if (state.timerInterval) clearInterval(state.timerInterval);
+    state.timerInterval = setInterval(tick, 100);
+  }
+
+  function tick() {
+    const elapsed = (Date.now() - state.startTime) / 1000;
+    state.timeLeft = Math.max(0, 60 - elapsed);
+    const tv = $('timer-value');
+    tv.textContent = Math.ceil(state.timeLeft);
+    if (state.timeLeft <= 10) tv.classList.add('warn');
+    else tv.classList.remove('warn');
+    $('timer-fill').style.transform = `scaleX(${state.timeLeft / 60})`;
+    if (state.timeLeft <= 0) endGame();
+  }
+
+  function nextQuestion() {
+    maybeSwap();
+    const q = makeQuestion();
+    state.currentAnswer = q.answer;
+    $('question').textContent = q.text;
+    updateTierIndicator(q.band);
+    // Swap warning unlocks at band 4 — same moment as new shapes appear
+    if (q.band >= 4) $('swap-warning').classList.add('show');
+    else $('swap-warning').classList.remove('show');
+  }
+
+  function updateTierIndicator(band) {
+    const dots = document.querySelectorAll('.tier-dot');
+    dots.forEach((d, i) => {
+      if (i < band) d.classList.add('active');
+      else d.classList.remove('active');
+    });
+  }
+
+  function handleAnswer(picked) {
+    if (state.timeLeft <= 0) return;
+    const correct = picked === state.currentAnswer;
+    state.fullHistory.push(correct);
+    state.history.push(correct);
+
+    const qEl = $('question');
+    const fb = $('feedback');
+
+    if (correct) {
+      state.score += 1;
+      state.correct += 1;
+      state.streak += 1;
+      state.bestStreak = Math.max(state.bestStreak, state.streak);
+      state.questionIndex += 1;  // depth is earned, not stumbled into
+      qEl.classList.remove('flash-wrong');
+      void qEl.offsetWidth;
+      qEl.classList.add('flash-correct');
+      fb.textContent = '+1';
+      fb.className = 'feedback-marker correct show';
+    } else {
+      state.score -= 1;
+      state.wrong += 1;
+      state.streak = 0;
+      qEl.classList.remove('flash-correct');
+      void qEl.offsetWidth;
+      qEl.classList.add('flash-wrong');
+      fb.textContent = '−1';
+      fb.className = 'feedback-marker wrong show';
+    }
+    setTimeout(() => fb.classList.remove('show'), 350);
+
+    updateHUD();
+    nextQuestion();
+  }
+
+  function updateHUD() {
+    $('score-value').textContent = state.score;
+  }
+
+  function endGame() {
+    clearInterval(state.timerInterval);
+    state.timerInterval = null;
+
+    // Row reached = the grid row of the last square. Counts every tap
+    // (right or wrong) so the headline matches what's visible in the grid.
+    const totalAnswered = state.history.length;
+    const highestTier = totalAnswered > 0
+      ? Math.ceil(totalAnswered / 10)
+      : 1;
+
+    // Headline suffix: reward perfection, gently call out brute-forcing.
+    // "Poorly" triggers when wrong answers exceed 30% of total — that's
+    // well past careful play and into button-mashing territory.
+    const total = state.correct + state.wrong;
+    const wrongRatio = total > 0 ? state.wrong / total : 0;
+    let suffix = '';
+    if (state.wrong === 0 && state.correct > 0) suffix = ' Perfectly 😎';
+    else if (total >= 10 && wrongRatio > 0.3) suffix = ' Poorly 😅';
+
+    $('end-headline').textContent = `You made row ${highestTier}!${suffix}`;
+    $('stat-score').textContent = state.score;
+    $('stat-correct').textContent = state.correct;
+    $('stat-wrong').textContent = state.wrong;
+    $('emoji-grid').innerHTML = buildEmojiGrid().replace(/\n/g, '<br>');
+    $('end-footer').textContent = state.mode === 'daily'
+      ? `ODD or EVEN №${state.dailyNumber}`
+      : 'ODD or EVEN';
+
+    // Daily mode: replace "Again" with a friendly come-back nudge,
+    // leaving Share as the only action. Practice mode keeps Again.
+    const againBtn = $('again-btn');
+    const actionsRow = $('end-actions-row');
+    const comeBack = $('come-back');
+    if (state.mode === 'daily') {
+      againBtn.hidden = true;
+      actionsRow.style.gridTemplateColumns = '1fr';
+      comeBack.hidden = false;
+    } else {
+      againBtn.hidden = false;
+      actionsRow.style.gridTemplateColumns = '1fr 1fr';
+      comeBack.hidden = true;
+    }
+
+    showScreen('end');
+  }
+
+  // Build a 2D grid: 10 squares per row. The final row is left
+  // incomplete to honestly reflect where the buzzer caught you.
+  const GRID_COLS = 10;
+  function buildEmojiGrid() {
+    if (state.history.length === 0) return '·····';
+    const squares = state.history.map(c => c ? '🟩' : '🟥');
+    const rows = [];
+    for (let i = 0; i < squares.length; i += GRID_COLS) {
+      rows.push(squares.slice(i, i + GRID_COLS).join(''));
+    }
+    return rows.join('\n');
+  }
+
+  // ============ SHARE ============
+  // Three-tier fallback because artifact iframes sandbox both
+  // navigator.share and navigator.clipboard:
+  //   1. Web Share API (mobile browsers, top-level pages)
+  //   2. Clipboard API (desktop, top-level secure pages)
+  //   3. document.execCommand('copy') via hidden textarea (works everywhere)
+  function legacyCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  async function share() {
+    const grid = buildEmojiGrid();
+    const totalAnswered = state.history.length;
+    const highestTier = totalAnswered > 0
+      ? Math.ceil(totalAnswered / 10)
+      : 1;
+    // Share version uses "I" instead of "You" — the player is now
+    // the one telling the story, not being told it.
+    const footer = state.mode === 'daily'
+      ? `ODD or EVEN №${state.dailyNumber}`
+      : `ODD or EVEN`;
+    const total = state.correct + state.wrong;
+    const wrongRatio = total > 0 ? state.wrong / total : 0;
+    let suffix = '';
+    if (state.wrong === 0 && state.correct > 0) suffix = ' Perfectly 😎';
+    else if (total >= 10 && wrongRatio > 0.3) suffix = ' Poorly 😅';
+    const headline = `I made row ${highestTier}!${suffix}`;
+    const text =
+`${headline}
+
+${state.score} pts · ✓ ${state.correct} · ✗ ${state.wrong}
+
+${grid}
+
+${footer}`;
+
+    const btn = $('share-btn');
+    let success = false;
+
+    // Tier 1: Web Share (mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({ text });
+        success = true;
+      } catch (e) {
+        // User cancelled, or share blocked — fall through to clipboard
+      }
+    }
+
+    // Tier 2: Clipboard API
+    if (!success && navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        success = true;
+      } catch (e) {
+        // Permission denied (often in iframes) — fall through
+      }
+    }
+
+    // Tier 3: legacy execCommand
+    if (!success) {
+      success = legacyCopy(text);
+    }
+
+    if (success) {
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Share';
+        btn.classList.remove('copied');
+      }, 1600);
+    } else {
+      // Last resort: show the text in a prompt so user can copy manually
+      btn.textContent = 'Copy below ↓';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Share';
+        btn.classList.remove('copied');
+      }, 2400);
+      window.prompt('Copy your result:', text);
+    }
+  }
+
+  // ============ EVENTS ============
+  $('start-btn').addEventListener('click', startGame);
+  $('again-btn').addEventListener('click', startGame);
+  $('share-btn').addEventListener('click', share);
+
+  // Mode toggle
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.mode = btn.dataset.mode;
+      updateStartFoot();
+    });
+  });
+
+  function updateStartFoot() {
+    const left = $('foot-left');
+    if (state.mode === 'daily') {
+      left.innerHTML = `No. <span id="daily-number">${getDailyNumber()}</span>`;
+    } else {
+      left.textContent = 'Free Play';
+    }
+  }
+  updateStartFoot();
+
+  // delegate answer taps so swapped buttons still work
+  $('answer-row').addEventListener('click', e => {
+    const btn = e.target.closest('.answer-btn');
+    if (!btn) return;
+    handleAnswer(btn.dataset.answer);
+  });
+
+  // keyboard support: ← / → or O / E
+  document.addEventListener('keydown', e => {
+    if (!screens.play.classList.contains('active')) return;
+    if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'o') {
+      handleAnswer($('btn-left').dataset.answer);
+    } else if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'e') {
+      handleAnswer($('btn-right').dataset.answer);
+    }
+  });
+})();
+</script>
+</body>
+</html>
