@@ -49,8 +49,8 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   html, body {
-    height: 100%;
     overscroll-behavior: none;
+    min-height: 100%;
   }
 
   body {
@@ -60,8 +60,14 @@
     -webkit-tap-highlight-color: transparent;
     user-select: none;
     -webkit-user-select: none;
-    overflow: hidden;
     touch-action: manipulation;
+  }
+  /* Lock the body to viewport height ONLY when the play screen is active,
+     so tapping during play doesn't scroll. End screen with a tall grid
+     needs to scroll naturally. */
+  body.play-active {
+    overflow: hidden;
+    height: 100dvh;
   }
 
   /* subtle grain */
@@ -81,12 +87,17 @@
   }
 
   .app {
-    height: 100dvh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     max-width: 480px;
     margin: 0 auto;
     position: relative;
+  }
+  /* When play is active, lock the app to viewport — no scroll past timer/buttons */
+  body.play-active .app {
+    height: 100dvh;
+    min-height: 100dvh;
   }
 
   /* ============ SCREENS ============ */
@@ -102,6 +113,7 @@
   #start-screen {
     justify-content: space-between;
     text-align: left;
+    min-height: 100dvh;
   }
 
   .title-block {
@@ -254,47 +266,19 @@
     line-height: 1;
     letter-spacing: -0.03em;
     text-align: center;
-    transition: transform 0.12s ease, opacity 0.12s ease;
   }
-  .question.flash-correct { animation: correctFlash 0.25s ease; }
-  .question.flash-wrong { animation: wrongFlash 0.25s ease; }
-  @keyframes correctFlash {
-    0% { transform: scale(1); }
-    40% { transform: scale(1.08); color: var(--even); }
-    100% { transform: scale(1); }
+  /* Wrong-answer shake: motion only, no color flash. Brief but unmissable
+     so players can't accidentally miss a wrong tap. */
+  .question.shake {
+    animation: questionShake 0.32s ease;
   }
-  @keyframes wrongFlash {
+  @keyframes questionShake {
     0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-8px); color: var(--odd); }
-    75% { transform: translateX(8px); color: var(--odd); }
+    20%      { transform: translateX(-10px); }
+    40%      { transform: translateX(10px); }
+    60%      { transform: translateX(-7px); }
+    80%      { transform: translateX(7px); }
   }
-
-  .feedback-marker {
-    position: absolute;
-    top: 30px;
-    font-family: 'Big Shoulders Display', sans-serif;
-    font-weight: 900;
-    font-size: 14px;
-    letter-spacing: 0.2em;
-    opacity: 0;
-    transform: translateY(-8px);
-    transition: all 0.2s ease;
-  }
-  .feedback-marker.show { opacity: 1; transform: translateY(0); }
-  .feedback-marker.correct { color: var(--even); }
-  .feedback-marker.wrong { color: var(--odd); }
-
-  .swap-warning {
-    position: absolute;
-    bottom: 30px;
-    font-size: 9px;
-    letter-spacing: 0.3em;
-    color: var(--dim);
-    text-transform: uppercase;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-  .swap-warning.show { opacity: 1; }
 
   .answer-row {
     display: grid;
@@ -347,6 +331,7 @@
     color: var(--dim);
     text-transform: uppercase;
     margin-top: 14px;
+    margin-bottom: 28px;
   }
 
   .stats {
@@ -418,22 +403,30 @@
     line-height: 1.5;
   }
 
-  /* row-up: brief flash when player crosses into a new row */
-  .row-up {
-    position: absolute;
-    top: 14px;
-    left: 50%;
-    transform: translate(-50%, -4px);
-    font-family: 'Big Shoulders Display', sans-serif;
-    font-weight: 900;
-    font-size: 16px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--ink);
-    opacity: 0;
-    pointer-events: none;
-    white-space: nowrap;
-    z-index: 2;
+  /* Studio credit: small attribution at the bottom of the end screen,
+     framed like an old film-studio mark. The robot logo sits above the
+     studio name in a vertical lockup. */
+  .studio-credit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-top: 28px;
+    margin-bottom: 8px;
+    opacity: 0.65;
+  }
+  .studio-logo {
+    width: 56px;
+    height: auto;
+    display: block;
+    filter: invert(1) brightness(0.95);  /* render the dark-ink robot in cream on dark bg */
+  }
+  .studio-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--dim);
+    text-align: center;
   }
 
   /* Both grids are visually identical: 10 columns, same gaps, same
@@ -485,32 +478,17 @@
     opacity: 1;
   }
 
-  /* Question and feedback layers float above the blurred backdrop */
+  /* Question floats above the blurred backdrop */
   .question { position: relative; z-index: 1; }
-  .feedback-marker { z-index: 2; }
-  .swap-warning { z-index: 2; }
-  .row-up { z-index: 2; }
 
-  /* Brief bloom beat: equation and buttons fade as the play-grid resolves */
-  #play-screen.ending .question,
-  #play-screen.ending .swap-warning,
-  #play-screen.ending .feedback-marker,
-  #play-screen.ending .row-up {
+  /* Brief bloom beat: equation fades as the play-grid resolves */
+  #play-screen.ending .question {
     opacity: 0;
     transition: opacity 0.4s ease;
   }
   #play-screen.ending .answer-btn {
     opacity: 0.3;
     transition: opacity 0.4s ease;
-  }
-  .row-up.show {
-    animation: rowUpFlash 900ms ease-out forwards;
-  }
-  @keyframes rowUpFlash {
-    0%   { opacity: 0; transform: translate(-50%, -4px); }
-    15%  { opacity: 1; transform: translate(-50%, 0); }
-    70%  { opacity: 1; transform: translate(-50%, 0); }
-    100% { opacity: 0; transform: translate(-50%, -2px); }
   }
 </style>
 </head>
@@ -557,10 +535,7 @@
 
     <div class="question-area">
       <div class="play-grid" id="play-grid"></div>
-      <div class="row-up" id="row-up"></div>
-      <div class="feedback-marker" id="feedback"></div>
       <div class="question" id="question">7</div>
-      <div class="swap-warning" id="swap-warning">⚠ buttons may swap</div>
     </div>
 
     <div class="answer-row" id="answer-row">
@@ -602,6 +577,10 @@
     </div>
     <div class="come-back" id="come-back" hidden>
       Come back tomorrow for a new Fudgy Maths!
+    </div>
+    <div class="studio-credit">
+      <img class="studio-logo" alt="" src="data:image/png;base64,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">
+      <div class="studio-name">Cruncher Cruncher Games</div>
     </div>
   </section>
 
@@ -677,6 +656,9 @@
   const showScreen = name => {
     Object.values(screens).forEach(s => s.classList.remove('active'));
     screens[name].classList.add('active');
+    // Lock the page to viewport during play; let it scroll on start/end
+    document.body.classList.toggle('play-active', name === 'play');
+    if (name !== 'play') window.scrollTo(0, 0);
   };
 
   // ============ QUESTION GENERATOR ============
@@ -987,7 +969,6 @@
     }
 
     setSwapped(false);
-    $('row-up').classList.remove('show');
     const playGrid = $('play-grid');
     playGrid.innerHTML = '';
     playGrid.classList.remove('revealed');
@@ -1015,9 +996,6 @@
     const q = makeQuestion();
     state.currentAnswer = q.answer;
     $('question').textContent = q.text;
-    // Swap warning unlocks at band 4 — same moment as new shapes appear
-    if (q.band >= 4) $('swap-warning').classList.add('show');
-    else $('swap-warning').classList.remove('show');
   }
 
   // Adds a colored square to the play-grid. The square is colored
@@ -1032,34 +1010,12 @@
     $('play-grid').appendChild(sq);
   }
 
-  // Row-up announcement. Fires when the next answered square will start
-  // a new grid row — i.e. just after every 10th answer. We compute it
-  // based on history length so it tracks what the player will see in
-  // the share grid, not the (stretched) difficulty bands.
-  function maybeAnnounceRowUp(prevHistoryLen, nextHistoryLen) {
-    const prevRow = Math.ceil(prevHistoryLen / 10) || 0;
-    const nextRow = Math.ceil(nextHistoryLen / 10) || 1;
-    if (nextRow > prevRow && nextRow >= 2) {
-      const el = $('row-up');
-      el.textContent = `Row ${nextRow} →`;
-      el.classList.remove('show');
-      // force reflow so the animation restarts cleanly on rapid row-ups
-      void el.offsetWidth;
-      el.classList.add('show');
-    }
-  }
-
   function handleAnswer(picked) {
     if (state.timeLeft <= 0) return;
     const correct = picked === state.currentAnswer;
-    const prevLen = state.history.length;
     state.fullHistory.push(correct);
     state.history.push(correct);
     addPlaySquare(correct);
-    maybeAnnounceRowUp(prevLen, state.history.length);
-
-    const qEl = $('question');
-    const fb = $('feedback');
 
     if (correct) {
       state.score += 1;
@@ -1067,22 +1023,17 @@
       state.streak += 1;
       state.bestStreak = Math.max(state.bestStreak, state.streak);
       state.questionIndex += 1;  // depth is earned, not stumbled into
-      qEl.classList.remove('flash-wrong');
-      void qEl.offsetWidth;
-      qEl.classList.add('flash-correct');
-      fb.textContent = '+1';
-      fb.className = 'feedback-marker correct show';
     } else {
       state.score -= 1;
       state.wrong += 1;
       state.streak = 0;
-      qEl.classList.remove('flash-correct');
+      // Shake the equation so the wrong tap is unmissable. Restart the
+      // animation cleanly with a forced reflow in case of fast tapping.
+      const qEl = $('question');
+      qEl.classList.remove('shake');
       void qEl.offsetWidth;
-      qEl.classList.add('flash-wrong');
-      fb.textContent = '−1';
-      fb.className = 'feedback-marker wrong show';
+      qEl.classList.add('shake');
     }
-    setTimeout(() => fb.classList.remove('show'), 350);
 
     updateHUD();
     nextQuestion();
@@ -1101,7 +1052,7 @@
     // run resolve in real-time. The grid acts as a visual bridge from
     // play to end screen: same squares, same place, suddenly clear.
     $('play-screen').classList.add('ending');
-    $('question').classList.remove('flash-correct', 'flash-wrong');
+    $('question').classList.remove('shake');
     $('play-grid').classList.add('revealed');
 
     setTimeout(() => {
