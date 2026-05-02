@@ -1,20 +1,29 @@
 <!DOCTYPE html>
+<!--
+  FUDGY MATHS: An Odd or Even Game
+  © 2026 The Author. All rights reserved.
+
+  This source is publicly viewable but not licensed for reuse.
+  No part of this code, design, or shareable output format may be
+  copied, redistributed, or used in derivative works without
+  explicit written permission from the author.
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ODD or EVEN</title>
+<title>Fudgy Maths — An Odd or Even Game</title>
 <meta name="description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets. A new puzzle every day.">
 
 <!-- Open Graph (Signal, iMessage, Slack, Discord, Facebook) -->
 <meta property="og:type" content="website">
-<meta property="og:title" content="ODD or EVEN">
+<meta property="og:title" content="Fudgy Maths — An Odd or Even Game">
 <meta property="og:description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets.">
-<meta property="og:site_name" content="Odd or Even">
+<meta property="og:site_name" content="Fudgy Maths">
 
 <!-- Twitter / X -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="ODD or EVEN">
+<meta name="twitter:title" content="Fudgy Maths — An Odd or Even Game">
 <meta name="twitter:description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets.">
 
 <!-- Theme color for mobile browser chrome -->
@@ -102,21 +111,23 @@
   .title {
     font-family: 'Big Shoulders Display', sans-serif;
     font-weight: 900;
-    font-size: clamp(64px, 18vw, 120px);
+    font-size: clamp(72px, 20vw, 132px);
     line-height: 0.85;
     letter-spacing: -0.02em;
+  }
+  .title .fudgy-word { color: var(--ink); }
+  .title .maths-word { color: var(--ink); }
+
+  .subtitle {
+    margin-top: 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
-  }
-  .title .or {
     color: var(--dim);
-    font-weight: 700;
-    font-size: 0.55em;
-    display: inline-block;
-    transform: translateY(-0.15em);
-    margin: 0 0.1em;
   }
-  .title .odd-word { color: var(--odd); }
-  .title .even-word { color: var(--even); }
+  .subtitle .odd-mini { color: var(--odd); font-weight: 700; }
+  .subtitle .even-mini { color: var(--even); font-weight: 700; }
 
   .tagline {
     margin-top: 28px;
@@ -364,14 +375,6 @@
   .grid-section {
     margin-top: 24px;
   }
-  .emoji-grid {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 18px;
-    line-height: 1.15;
-    letter-spacing: 1px;
-    word-break: keep-all;
-    white-space: nowrap;
-  }
 
   .end-actions {
     display: grid;
@@ -415,23 +418,100 @@
     line-height: 1.5;
   }
 
-  /* tier indicator (subtle) */
-  .tier-indicator {
+  /* row-up: brief flash when player crosses into a new row */
+  .row-up {
     position: absolute;
     top: 14px;
     left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 4px;
+    transform: translate(-50%, -4px);
+    font-family: 'Big Shoulders Display', sans-serif;
+    font-weight: 900;
+    font-size: 16px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink);
+    opacity: 0;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 2;
   }
-  .tier-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
+
+  /* Both grids are visually identical: 10 columns, same gaps, same
+     square style. The play-grid sits absolutely behind the equation
+     and is blurred; the end-grid is sharp and in document flow. At
+     end-time the blur lifts and the visual handoff is seamless. */
+  .square-grid,
+  .play-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 5px;
+  }
+  .grid-square {
+    aspect-ratio: 1;
+    border-radius: 3px;
     background: var(--rule);
-    transition: background 0.2s;
   }
-  .tier-dot.active { background: var(--ink); }
+  .grid-square[data-state="correct"] { background: var(--even); }
+  .grid-square[data-state="wrong"]   { background: var(--odd);  }
+
+  /* Play-grid: absolutely positioned behind the equation, blurred.
+     Sized to match the end-grid's typical width so the squares look
+     the same size in both states. */
+  .play-grid {
+    position: absolute;
+    top: 50px;
+    left: 12px;
+    right: 12px;
+    z-index: 0;
+    filter: blur(8px);
+    opacity: 0.5;
+    pointer-events: none;
+    transition: filter 0.6s ease, opacity 0.6s ease;
+    align-content: start;
+  }
+  .play-grid .grid-square {
+    transform: scale(0);
+    animation: squarePop 0.3s ease-out forwards;
+  }
+  @keyframes squarePop {
+    0%   { transform: scale(0.3); }
+    60%  { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  /* End reveal: blur lifts. The squares stay put; only sharpness changes. */
+  .play-grid.revealed {
+    filter: blur(0);
+    opacity: 1;
+  }
+
+  /* Question and feedback layers float above the blurred backdrop */
+  .question { position: relative; z-index: 1; }
+  .feedback-marker { z-index: 2; }
+  .swap-warning { z-index: 2; }
+  .row-up { z-index: 2; }
+
+  /* Brief bloom beat: equation and buttons fade as the play-grid resolves */
+  #play-screen.ending .question,
+  #play-screen.ending .swap-warning,
+  #play-screen.ending .feedback-marker,
+  #play-screen.ending .row-up {
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+  #play-screen.ending .answer-btn {
+    opacity: 0.3;
+    transition: opacity 0.4s ease;
+  }
+  .row-up.show {
+    animation: rowUpFlash 900ms ease-out forwards;
+  }
+  @keyframes rowUpFlash {
+    0%   { opacity: 0; transform: translate(-50%, -4px); }
+    15%  { opacity: 1; transform: translate(-50%, 0); }
+    70%  { opacity: 1; transform: translate(-50%, 0); }
+    100% { opacity: 0; transform: translate(-50%, -2px); }
+  }
 </style>
 </head>
 <body>
@@ -441,9 +521,11 @@
   <section class="screen active" id="start-screen">
     <div class="title-block">
       <div class="title">
-        <div class="odd-word">ODD</div>
-        <span class="or">or</span>
-        <div class="even-word">EVEN</div>
+        <div class="fudgy-word">Fudgy</div>
+        <div class="maths-word">Maths</div>
+      </div>
+      <div class="subtitle">
+        An <span class="odd-mini">Odd</span> or <span class="even-mini">Even</span> Game
       </div>
     </div>
     <div>
@@ -474,14 +556,8 @@
     <div class="timer-bar"><div class="timer-bar-fill" id="timer-fill"></div></div>
 
     <div class="question-area">
-      <div class="tier-indicator" id="tier-indicator">
-        <div class="tier-dot active"></div>
-        <div class="tier-dot"></div>
-        <div class="tier-dot"></div>
-        <div class="tier-dot"></div>
-        <div class="tier-dot"></div>
-        <div class="tier-dot"></div>
-      </div>
+      <div class="play-grid" id="play-grid"></div>
+      <div class="row-up" id="row-up"></div>
       <div class="feedback-marker" id="feedback"></div>
       <div class="question" id="question">7</div>
       <div class="swap-warning" id="swap-warning">⚠ buttons may swap</div>
@@ -515,17 +591,17 @@
       </div>
 
       <div class="grid-section">
-        <div class="emoji-grid" id="emoji-grid">·····</div>
-        <div class="end-footer" id="end-footer">ODD or EVEN</div>
+        <div class="square-grid" id="square-grid"></div>
+        <div class="end-footer" id="end-footer">FUDGY MATHS</div>
       </div>
     </div>
 
     <div class="end-actions" id="end-actions-row">
       <button class="action-btn" id="again-btn">Again</button>
-      <button class="action-btn primary" id="share-btn">Share</button>
+      <button class="action-btn primary" id="share-btn">Share your grid</button>
     </div>
     <div class="come-back" id="come-back" hidden>
-      Come back for a new Odd or Even tomorrow!
+      Come back tomorrow for a new Fudgy Maths!
     </div>
   </section>
 
@@ -911,6 +987,10 @@
     }
 
     setSwapped(false);
+    $('row-up').classList.remove('show');
+    const playGrid = $('play-grid');
+    playGrid.innerHTML = '';
+    playGrid.classList.remove('revealed');
     updateHUD();
     nextQuestion();
     showScreen('play');
@@ -935,25 +1015,48 @@
     const q = makeQuestion();
     state.currentAnswer = q.answer;
     $('question').textContent = q.text;
-    updateTierIndicator(q.band);
     // Swap warning unlocks at band 4 — same moment as new shapes appear
     if (q.band >= 4) $('swap-warning').classList.add('show');
     else $('swap-warning').classList.remove('show');
   }
 
-  function updateTierIndicator(band) {
-    const dots = document.querySelectorAll('.tier-dot');
-    dots.forEach((d, i) => {
-      if (i < band) d.classList.add('active');
-      else d.classList.remove('active');
-    });
+  // Adds a colored square to the play-grid. The square is colored
+  // immediately based on right/wrong, but the grid's heavy blur during
+  // play abstracts those colors into atmospheric washes — the player
+  // senses tone (greener = better) but can't actually read individual
+  // squares until the bloom-up reveal.
+  function addPlaySquare(correct) {
+    const sq = document.createElement('div');
+    sq.className = 'grid-square';
+    sq.dataset.state = correct ? 'correct' : 'wrong';
+    $('play-grid').appendChild(sq);
+  }
+
+  // Row-up announcement. Fires when the next answered square will start
+  // a new grid row — i.e. just after every 10th answer. We compute it
+  // based on history length so it tracks what the player will see in
+  // the share grid, not the (stretched) difficulty bands.
+  function maybeAnnounceRowUp(prevHistoryLen, nextHistoryLen) {
+    const prevRow = Math.ceil(prevHistoryLen / 10) || 0;
+    const nextRow = Math.ceil(nextHistoryLen / 10) || 1;
+    if (nextRow > prevRow && nextRow >= 2) {
+      const el = $('row-up');
+      el.textContent = `Row ${nextRow} →`;
+      el.classList.remove('show');
+      // force reflow so the animation restarts cleanly on rapid row-ups
+      void el.offsetWidth;
+      el.classList.add('show');
+    }
   }
 
   function handleAnswer(picked) {
     if (state.timeLeft <= 0) return;
     const correct = picked === state.currentAnswer;
+    const prevLen = state.history.length;
     state.fullHistory.push(correct);
     state.history.push(correct);
+    addPlaySquare(correct);
+    maybeAnnounceRowUp(prevLen, state.history.length);
 
     const qEl = $('question');
     const fb = $('feedback');
@@ -993,6 +1096,21 @@
     clearInterval(state.timerInterval);
     state.timerInterval = null;
 
+    // Bloom the play-grid into focus. The squares were always there,
+    // just blurred — now the blur lifts and the player sees their full
+    // run resolve in real-time. The grid acts as a visual bridge from
+    // play to end screen: same squares, same place, suddenly clear.
+    $('play-screen').classList.add('ending');
+    $('question').classList.remove('flash-correct', 'flash-wrong');
+    $('play-grid').classList.add('revealed');
+
+    setTimeout(() => {
+      $('play-screen').classList.remove('ending');
+      finalizeEnd();
+    }, 800);
+  }
+
+  function finalizeEnd() {
     // Row reached = the grid row of the last square. Counts every tap
     // (right or wrong) so the headline matches what's visible in the grid.
     const totalAnswered = state.history.length;
@@ -1013,10 +1131,25 @@
     $('stat-score').textContent = state.score;
     $('stat-correct').textContent = state.correct;
     $('stat-wrong').textContent = state.wrong;
-    $('emoji-grid').innerHTML = buildEmojiGrid().replace(/\n/g, '<br>');
+    // Populate the end-screen square grid with real DOM elements
+    // matching the play-grid we just revealed. The squares are colored
+    // identically; this is the "permanent" version on the end screen
+    // that persists for the share moment.
+    const sqGrid = $('square-grid');
+    sqGrid.innerHTML = '';
+    state.history.forEach(correct => {
+      const sq = document.createElement('div');
+      sq.className = 'grid-square';
+      sq.dataset.state = correct ? 'correct' : 'wrong';
+      // Skip the pop animation on the end screen — they're already
+      // "alive," just fading in with the screen.
+      sq.style.transform = 'scale(1)';
+      sq.style.animation = 'none';
+      sqGrid.appendChild(sq);
+    });
     $('end-footer').textContent = state.mode === 'daily'
-      ? `ODD or EVEN №${state.dailyNumber}`
-      : 'ODD or EVEN';
+      ? `FUDGY MATHS №${state.dailyNumber}`
+      : 'FUDGY MATHS';
 
     // Daily mode: replace "Again" with a friendly come-back nudge,
     // leaving Share as the only action. Practice mode keeps Again.
@@ -1081,8 +1214,8 @@
     // Share version uses "I" instead of "You" — the player is now
     // the one telling the story, not being told it.
     const footer = state.mode === 'daily'
-      ? `ODD or EVEN №${state.dailyNumber}`
-      : `ODD or EVEN`;
+      ? `FUDGY MATHS №${state.dailyNumber}`
+      : `FUDGY MATHS`;
     const total = state.correct + state.wrong;
     const wrongRatio = total > 0 ? state.wrong / total : 0;
     let suffix = '';
@@ -1130,7 +1263,7 @@ ${footer}`;
       btn.textContent = 'Copied!';
       btn.classList.add('copied');
       setTimeout(() => {
-        btn.textContent = 'Share';
+        btn.textContent = 'Share your grid';
         btn.classList.remove('copied');
       }, 1600);
     } else {
@@ -1138,7 +1271,7 @@ ${footer}`;
       btn.textContent = 'Copy below ↓';
       btn.classList.add('copied');
       setTimeout(() => {
-        btn.textContent = 'Share';
+        btn.textContent = 'Share your grid';
         btn.classList.remove('copied');
       }, 2400);
       window.prompt('Copy your result:', text);
