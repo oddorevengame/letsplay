@@ -13,18 +13,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fudgy Maths — An Odd or Even Game</title>
-<meta name="description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets. A new puzzle every day.">
+<meta name="description" content="Two buttons. Sixty seconds. What row will you reach?">
 
 <!-- Open Graph (Signal, iMessage, Slack, Discord, Facebook) -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="Fudgy Maths — An Odd or Even Game">
-<meta property="og:description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets.">
+<meta property="og:description" content="Two buttons. Sixty seconds. What row will you reach?">
 <meta property="og:site_name" content="Fudgy Maths">
 
 <!-- Twitter / X -->
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Fudgy Maths — An Odd or Even Game">
-<meta name="twitter:description" content="60 seconds. Tap odd or even. The longer you survive, the weirder it gets.">
+<meta name="twitter:description" content="Two buttons. Sixty seconds. What row will you reach?">
 
 <!-- Theme color for mobile browser chrome -->
 <meta name="theme-color" content="#0e0e10">
@@ -128,7 +128,18 @@
     letter-spacing: -0.02em;
   }
   .title .fudgy-word { color: var(--ink); }
-  .title .maths-word { color: var(--ink); }
+  .title .maths-word { color: var(--ink); position: relative; display: inline-block; }
+  .title .beta-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    vertical-align: super;
+    margin-left: 0.15em;
+    position: relative;
+    top: -0.4em;
+  }
 
   .subtitle {
     margin-top: 18px;
@@ -262,11 +273,20 @@
   .question {
     font-family: 'Big Shoulders Display', sans-serif;
     font-weight: 900;
-    font-size: clamp(72px, 22vw, 140px);
-    line-height: 1;
+    font-size: clamp(56px, 18vw, 130px);
+    line-height: 1.05;
     letter-spacing: -0.03em;
     text-align: center;
+    /* Wrap long spelled-out / emoji equations gracefully */
+    overflow-wrap: break-word;
+    word-break: normal;
+    max-width: 100%;
+    padding: 0 8px;
   }
+  /* Apply a smaller font automatically when the question gets long.
+     Driven by a data attribute set in JS based on character count. */
+  .question[data-len="long"]   { font-size: clamp(40px, 12vw, 84px); }
+  .question[data-len="xlong"]  { font-size: clamp(32px, 9vw, 64px); }
   /* Wrong-answer shake: motion only, no color flash. Brief but unmissable
      so players can't accidentally miss a wrong tap. */
   .question.shake {
@@ -324,6 +344,12 @@
     line-height: 0.95;
     letter-spacing: -0.02em;
   }
+  /* Trophy appears inline at the end of the headline when a row record breaks */
+  .end-headline.new-best-row::after {
+    content: ' 🏆';
+    font-size: 0.55em;
+    vertical-align: 0.15em;
+  }
   .end-footer {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
@@ -349,6 +375,12 @@
     color: var(--dim);
     text-transform: uppercase;
     margin-bottom: 4px;
+  }
+  /* NEW BEST tag — a small accent that appears next to the SCORE label
+     when a personal best score is broken on this run. */
+  .stat-label.new-best::after {
+    content: ' 🏆';
+    margin-left: 4px;
   }
   .stat-value {
     font-family: 'Big Shoulders Display', sans-serif;
@@ -429,14 +461,14 @@
     text-align: center;
   }
 
-  /* Both grids are visually identical: 10 columns, same gaps, same
-     square style. The play-grid sits absolutely behind the equation
-     and is blurred; the end-grid is sharp and in document flow. At
-     end-time the blur lifts and the visual handoff is seamless. */
+  /* Both grids are visually identical: GRID_COLS columns wide, same
+     gaps, same square style. The play-grid sits absolutely behind the
+     equation and is blurred; the end-grid is sharp and in document
+     flow. At end-time the blur lifts and the visual handoff is seamless. */
   .square-grid,
   .play-grid {
     display: grid;
-    grid-template-columns: repeat(10, 1fr);
+    grid-template-columns: repeat(8, 1fr);
     gap: 5px;
   }
   .grid-square {
@@ -500,7 +532,7 @@
     <div class="title-block">
       <div class="title">
         <div class="fudgy-word">Fudgy</div>
-        <div class="maths-word">Maths</div>
+        <div class="maths-word">Maths<span class="beta-tag">BETA</span></div>
       </div>
       <div class="subtitle">
         An <span class="odd-mini">Odd</span> or <span class="even-mini">Even</span> Game
@@ -552,7 +584,7 @@
 
       <div class="stats">
         <div class="stat">
-          <div class="stat-label">Score</div>
+          <div class="stat-label" id="stat-score-label">Score</div>
           <div class="stat-value" id="stat-score">0</div>
         </div>
         <div class="stat">
@@ -588,6 +620,12 @@
 
 <script>
 (function(){
+  // ============ CONFIG ============
+  // Row width for both the visible play-grid, the end-screen grid, and
+  // the shareable emoji grid. Single source of truth so changing this
+  // affects everything consistently.
+  const GRID_COLS = 8;
+
   // ============ STATE ============
   const state = {
     score: 0,
@@ -596,10 +634,10 @@
     streak: 0,
     bestStreak: 0,
     timeLeft: 60,
+    totalDuration: 60,    // mutable: grows with perfect-row bonuses
     history: [],          // array of true/false, every answer this run
     fullHistory: [],      // every answer for stats
     currentAnswer: null,  // 'odd' | 'even'
-    swapped: false,
     timerInterval: null,
     startTime: 0,
     mode: 'daily',        // 'daily' | 'practice'
@@ -632,7 +670,7 @@
   }
 
   // Days since launch epoch — used as the daily puzzle number.
-  const LAUNCH_EPOCH = new Date('2026-01-01T00:00:00').getTime();
+  const LAUNCH_EPOCH = new Date('2026-05-02T00:00:00').getTime();
   function getDailyKey() {
     const now = new Date();
     const y = now.getFullYear();
@@ -661,25 +699,63 @@
     if (name !== 'play') window.scrollTo(0, 0);
   };
 
+  // ============ STATS (personal bests via localStorage) ============
+  // Tracks two records: best daily score and best daily row reached.
+  // Practice runs are NOT tracked — they're unlimited replays, so
+  // recording them would trivialize the records. Practice is practice.
+  const STATS_KEY = 'fudgy-maths-stats-v2';
+  const stats = {
+    load() {
+      try {
+        const raw = localStorage.getItem(STATS_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) { /* fall through */ }
+      return { daily: { bestScore: null, bestRow: null } };
+    },
+    save(data) {
+      try { localStorage.setItem(STATS_KEY, JSON.stringify(data)); }
+      catch (e) { /* localStorage unavailable — silently no-op */ }
+    },
+    // Compare a finished run against stored bests. Returns flags telling
+    // the end screen which records (if any) were newly broken on this run.
+    record(mode, score, row) {
+      if (mode !== 'daily') return { newBestScore: false, newBestRow: false };
+      const data = this.load();
+      const bucket = data.daily;
+      const flags = { newBestScore: false, newBestRow: false };
+      if (bucket.bestScore === null || score > bucket.bestScore) {
+        bucket.bestScore = score;
+        flags.newBestScore = true;
+      }
+      if (bucket.bestRow === null || row > bucket.bestRow) {
+        bucket.bestRow = row;
+        flags.newBestRow = true;
+      }
+      this.save(data);
+      return flags;
+    },
+  };
+
   // ============ QUESTION GENERATOR ============
-  // Six bands of varying length. Reaching band 6 is intentionally hard —
-  // it requires ~62 correct answers in 60 seconds. Wrong answers do NOT
-  // advance the questionIndex (see handleAnswer), so depth is genuinely
-  // earned, not stumbled into.
+  // Six bands, compressed at the front so players reach the inventive
+  // territory (mixed-mode, fractions, dice operations, multi-step) faster.
+  // Reaching band 6 still requires ~50 correct answers — elite, but
+  // achievable for fast players. Wrong answers do NOT advance the
+  // questionIndex, so depth is genuinely earned.
   //
-  //   B1 (Q  1-8):   single digit → small addition          [ 8 questions]
-  //   B2 (Q  9-20):  add/sub → small multiplication         [12 questions]
-  //   B3 (Q 21-34):  multiplication, doubling → squares     [14 questions]
-  //   B4 (Q 35-48):  squares, division → mixed two-op       [14 questions]
-  //   B5 (Q 49-62):  multi-step → square ± offset           [14 questions]
-  //   B6 (Q 63+):    cubes, big squares, n³ ± c             [elite tier]
+  //   B1 (Q  1-5):   single digit, tiny novelty sprinkles    [ 5 questions]
+  //   B2 (Q  6-13):  add/sub backbone, two-operand variants  [ 8 questions]
+  //   B3 (Q 14-22):  multiplication, doubling, squares       [ 9 questions]
+  //   B4 (Q 23-35):  squares, division, mixed-mode arrives   [13 questions]
+  //   B5 (Q 36-50):  multi-step, fraction-plus, dice × arabic[15 questions]
+  //   B6 (Q 51+):    cubes, big squares, n³ ± c              [elite tier]
   const BAND_RANGES = [
-    { band: 1, start: 0,  end: 8  },   // Q 1-8
-    { band: 2, start: 8,  end: 20 },   // Q 9-20
-    { band: 3, start: 20, end: 34 },   // Q 21-34
-    { band: 4, start: 34, end: 48 },   // Q 35-48
-    { band: 5, start: 48, end: 62 },   // Q 49-62
-    { band: 6, start: 62, end: Infinity },
+    { band: 1, start: 0,  end: 5  },   // Q 1-5
+    { band: 2, start: 5,  end: 13 },   // Q 6-13
+    { band: 3, start: 13, end: 22 },   // Q 14-22
+    { band: 4, start: 22, end: 35 },   // Q 23-35
+    { band: 5, start: 35, end: 50 },   // Q 36-50
+    { band: 6, start: 50, end: Infinity },
   ];
   const TOTAL_BANDS = 6;
   function bandFor(qIndex) {
@@ -709,11 +785,46 @@
     }
   }
 
+  // Number-word lookup for spelled-out equations. Up to 20 covers every
+  // operand we need without making the equation text overrun the display.
+  const WORDS = [
+    'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven',
+    'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen',
+    'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'
+  ];
+  const word = n => WORDS[n] || String(n);
+
+  // Roman numeral conversion, capped by row. Higher rows allow larger
+  // numerals; the cap is the design knob for how punishing the format
+  // becomes. Subtractive notation (IV, IX, XIV, XIX) is the cognitive
+  // speed bump that makes Roman numerals feel hard.
+  const ROMAN_TABLE = [
+    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+  ];
+  function toRoman(n) {
+    let out = '';
+    let r = n;
+    for (const [val, sym] of ROMAN_TABLE) {
+      while (r >= val) { out += sym; r -= val; }
+    }
+    return out;
+  }
+
+  // Pool of count-friendly emoji. Each renders distinctly enough at
+  // small sizes that a player can count them quickly. Cap question
+  // length at 10 so the equation never overruns the display.
+  const COUNT_EMOJI = ['🕺', '🐱', '🍕', '🚀', '🌟', '🦄', '🎈', '🍩', '👻', '🐢'];
+
+  // Dice faces 1-6. Unicode "Game Dice" block, well-supported on modern
+  // phones (iOS, Android Chrome, recent desktop browsers). Indexed 1-6
+  // so DICE[1] is the one-pip face, DICE[6] is the six-pip face.
+  const DICE = [null, '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
   // Question shape generators — each returns {text, value}. Kept as
   // small functions so bands can compose them with weighted picks.
   const shapes = {
     single: () => {
-      const n = rand(0, 9);
+      const n = rand(1, 9);
       return { text: String(n), value: n };
     },
     addSmall: () => {
@@ -796,26 +907,227 @@
       const op = state.rng() < 0.5 ? '+' : '−';
       return { text: `${n}³ ${op} ${c}`, value: op === '+' ? n * n * n + c : n * n * n - c };
     },
+
+    // ===== SPELLED-OUT EQUATIONS =====
+    // Same arithmetic as small/medium addition or subtraction, but
+    // operands rendered as English words. Cognitive cost is the reading,
+    // not the math. Tiny variant unlocked at row 2; fuller versions at row 3+.
+    spelledAddTiny: () => {
+      // Single-digit operands only. Easiest possible spelled equation.
+      const a = rand(1, 5), b = rand(1, 4);
+      return { text: `${word(a)} plus ${word(b)}`, value: a + b };
+    },
+    spelledAdd: () => {
+      const a = rand(2, 9), b = rand(2, 9);
+      return { text: `${word(a)} plus ${word(b)}`, value: a + b };
+    },
+    spelledSub: () => {
+      const a = rand(8, 15), b = rand(1, 7);
+      return { text: `${word(a)} minus ${word(b)}`, value: a - b };
+    },
+    spelledThree: () => {
+      const a = rand(2, 6), b = rand(2, 6), c = rand(1, 4);
+      return { text: `${word(a)} plus ${word(b)} plus ${word(c)}`, value: a + b + c };
+    },
+
+    // ===== EMOJI COUNT =====
+    // Pick a single emoji and repeat it n times. Player counts the
+    // glyphs to determine parity. Tiny variant (2-5) at row 2; fuller
+    // 2-10 range at row 3+; subtraction variant at row 4+.
+    emojiCountTiny: () => {
+      // Just 2-5 emojis. Glance-and-count quick.
+      const n = rand(2, 5);
+      const e = pick(COUNT_EMOJI);
+      return { text: e.repeat(n), value: n };
+    },
+    emojiCount: () => {
+      const n = rand(2, 10);
+      const e = pick(COUNT_EMOJI);
+      return { text: e.repeat(n), value: n };
+    },
+    // Same idea but with a small subtraction: "🐱🐱🐱🐱🐱 − 2"
+    // Read the emoji count, subtract the number, decide parity.
+    emojiMinus: () => {
+      const n = rand(4, 10), c = rand(1, 3);
+      const e = pick(COUNT_EMOJI);
+      return { text: `${e.repeat(n)} − ${c}`, value: n - c };
+    },
+
+    // ===== ROMAN NUMERALS =====
+    // Cap parameter controls how big the numerals get. Smaller caps
+    // mean simpler numerals (fewer subtractive forms, shorter strings).
+    // Each row has its own cap; see the band logic below.
+    // Tiny variant (cap V) at row 3 introduces the format gently —
+    // only I, II, III, IV, V appear, with just one subtractive form.
+    romanAddTiny: () => {
+      const a = rand(1, 5), b = rand(1, 5);
+      return { text: `${toRoman(a)} + ${toRoman(b)}`, value: a + b };
+    },
+    romanAdd: (cap = 8) => {
+      const a = rand(1, cap), b = rand(1, cap);
+      return { text: `${toRoman(a)} + ${toRoman(b)}`, value: a + b };
+    },
+    romanSub: (cap = 8) => {
+      // Ensure non-negative: a >= b
+      const a = rand(2, cap);
+      const b = rand(1, Math.max(1, a - 1));
+      return { text: `${toRoman(a)} − ${toRoman(b)}`, value: a - b };
+    },
+    // Roman multiplication. Same Roman cap concept but multiplication
+    // of small Roman numerals. Tiny variant (cap III, so just I-III)
+    // unlocks gently before fuller cap V at row 5+.
+    romanMultTiny: () => {
+      const a = rand(2, 3), b = rand(2, 3);
+      return { text: `${toRoman(a)} × ${toRoman(b)}`, value: a * b };
+    },
+    romanMult: (cap = 5) => {
+      const a = rand(2, cap), b = rand(2, cap);
+      return { text: `${toRoman(a)} × ${toRoman(b)}`, value: a * b };
+    },
+
+    // Spelled-out multiplication. Tiny variant uses 2×2 to 3×3, full
+    // version uses 2-9 × 2-9.
+    spelledMultTiny: () => {
+      const a = rand(2, 3), b = rand(2, 3);
+      return { text: `${word(a)} times ${word(b)}`, value: a * b };
+    },
+    spelledMult: () => {
+      const a = rand(2, 6), b = rand(2, 6);
+      return { text: `${word(a)} times ${word(b)}`, value: a * b };
+    },
+
+    // ===== FRACTIONS =====
+    // Always resolve to a whole number — we never give the player a
+    // fractional result they have to interpret. Tiny variant (divisor 2,
+    // small numerators) introduces the format; full version uses larger
+    // numerators and divisors up to 5.
+    fractionTiny: () => {
+      // numerator/2 where numerator is 4-12 even — always clean.
+      const den = 2;
+      const q = rand(2, 6);  // quotient
+      const num = q * den;
+      return { text: `${num}/${den}`, value: q };
+    },
+    fraction: () => {
+      const den = rand(2, 5);
+      const q = rand(2, 9);
+      const num = q * den;
+      return { text: `${num}/${den}`, value: q };
+    },
+    fractionPlus: () => {
+      // Fraction + small offset — bridges to mid-game complexity.
+      const den = rand(2, 4);
+      const q = rand(2, 8);
+      const num = q * den;
+      const c = rand(1, 6);
+      const op = state.rng() < 0.5 ? '+' : '−';
+      const value = op === '+' ? q + c : q - c;
+      return { text: `${num}/${den} ${op} ${c}`, value };
+    },
+
+    // ===== DICE =====
+    // Single die: just count pips. Two dice: sum the pips. Dice in
+    // equations: dice + arabic, etc. The pip-counting itself is fast
+    // (one die is 1-6); the difficulty scales with combination count.
+    diceSolo: () => {
+      const n = rand(1, 6);
+      return { text: DICE[n], value: n };
+    },
+    dicePair: () => {
+      const a = rand(1, 6), b = rand(1, 6);
+      return { text: `${DICE[a]} ${DICE[b]}`, value: a + b };
+    },
+    diceTrio: () => {
+      const a = rand(1, 6), b = rand(1, 6), c = rand(1, 6);
+      return { text: `${DICE[a]} ${DICE[b]} ${DICE[c]}`, value: a + b + c };
+    },
+    dicePlusArabic: () => {
+      const a = rand(1, 6), b = rand(2, 9);
+      const op = state.rng() < 0.5 ? '+' : '−';
+      // Avoid negative results
+      const value = op === '+' ? a + b : Math.max(0, a - b);
+      const safeOp = (op === '−' && a < b) ? '+' : op;
+      return { text: `${DICE[a]} ${safeOp} ${b}`, value: safeOp === '+' ? a + b : a - b };
+    },
+    diceTimesArabic: () => {
+      const a = rand(2, 6), b = rand(2, 6);
+      return { text: `${DICE[a]} × ${b}`, value: a * b };
+    },
+
+    // ===== MIXED-MODE EQUATIONS =====
+    // One operand is in an alternate format (Roman or spelled), the
+    // other is a normal Arabic numeral. Forces a mid-equation mode
+    // switch. Limited to 2-mode mixes for legibility.
+    mixedRomanArabic: (cap = 13) => {
+      const a = rand(1, cap), b = rand(2, 9);
+      const op = state.rng() < 0.5 ? '+' : '−';
+      // Randomize which side gets which mode
+      const romanFirst = state.rng() < 0.5;
+      const left  = romanFirst ? toRoman(a) : String(b);
+      const right = romanFirst ? String(b)  : toRoman(a);
+      const value = romanFirst
+        ? (op === '+' ? a + b : a - b)
+        : (op === '+' ? b + a : b - a);
+      // Avoid negative results — flip operator if needed
+      if (value < 0) {
+        return { text: `${left} + ${right}`, value: a + b };
+      }
+      return { text: `${left} ${op} ${right}`, value };
+    },
+    mixedSpelledArabic: () => {
+      const a = rand(2, 9), b = rand(2, 9);
+      const op = state.rng() < 0.5 ? '+' : '−';
+      const wordFirst = state.rng() < 0.5;
+      const left  = wordFirst ? word(a) : String(b);
+      const right = wordFirst ? String(b) : word(a);
+      const value = wordFirst
+        ? (op === '+' ? a + b : a - b)
+        : (op === '+' ? b + a : b - a);
+      if (value < 0) {
+        return { text: `${left} plus ${right}`, value: a + b };
+      }
+      const opWord = op === '+' ? 'plus' : 'minus';
+      return { text: `${left} ${opWord} ${right}`, value };
+    },
   };
 
-  // Weighted pick from an [{shape, weight}] list.
+  // Weighted pick from an [{shape, weight, args?}] list. The optional
+  // `args` array gets spread into the shape generator — used by Roman
+  // numeral shapes whose difficulty cap varies per row.
   function weightedPick(entries) {
     const total = entries.reduce((s, e) => s + e.weight, 0);
     let r = state.rng() * total;
     for (const e of entries) {
       r -= e.weight;
-      if (r <= 0) return shapes[e.shape]();
+      if (r <= 0) return shapes[e.shape](...(e.args || []));
     }
-    return shapes[entries[entries.length - 1].shape]();
+    const last = entries[entries.length - 1];
+    return shapes[last.shape](...(last.args || []));
   }
 
   // Linearly interpolate between an "easy" and "hard" weight set
-  // based on subProgress (0.0 → 1.0 across the band).
+  // based on subProgress (0.0 → 1.0 across the band). Matches entries
+  // by shape name (and arg signature) so easy and hard pools can have
+  // different shapes — a shape only present in `hard` ramps from 0 to
+  // its full weight; a shape only in `easy` ramps from full weight to 0.
   function rampWeights(easy, hard, t) {
-    return easy.map((e, i) => ({
-      shape: e.shape,
-      weight: e.weight * (1 - t) + hard[i].weight * t,
-    }));
+    const argKey = e => `${e.shape}::${(e.args || []).join(',')}`;
+    const hardMap = new Map(hard.map(e => [argKey(e), e]));
+    const easyMap = new Map(easy.map(e => [argKey(e), e]));
+    const allKeys = new Set([...easyMap.keys(), ...hardMap.keys()]);
+    const out = [];
+    for (const k of allKeys) {
+      const e = easyMap.get(k);
+      const h = hardMap.get(k);
+      const ref = e || h;  // at least one must exist
+      const eW = e ? e.weight : 0;
+      const hW = h ? h.weight : 0;
+      const w = eW * (1 - t) + hW * t;
+      if (w > 0) {
+        out.push({ shape: ref.shape, weight: w, args: ref.args });
+      }
+    }
+    return out;
   }
 
   function makeQuestion() {
@@ -824,75 +1136,225 @@
     let q;
 
     if (band === 1) {
-      // Single digits → small addition by end of band
-      const easy = [{shape:'single', weight:10}, {shape:'addSmall', weight:0}];
-      const hard = [{shape:'single', weight:3},  {shape:'addSmall', weight:7}];
+      // Row 1 — variety from the start. Numeric Arabic dominates so the
+      // game feels familiar at first glance, but every "number-as-thing"
+      // format (single die, tiny spelled, tiny emoji, tiny Roman) shows
+      // up in sprinkles. Single-digit Arabic is the calm shape; everything
+      // else is a tiny treat. By end of band, addition appears as the
+      // bridge to band 2's two-operand world.
+      const easy = [
+        // Numeric backbone
+        {shape:'single',         weight:8},
+        {shape:'addSmall',       weight:0},
+        // Variety sprinkles — all in their tiniest form
+        {shape:'spelledAddTiny', weight:1},
+        {shape:'emojiCountTiny', weight:1},
+        {shape:'diceSolo',       weight:2},
+        {shape:'romanAddTiny',   weight:1},
+      ];
+      const hard = [
+        {shape:'single',         weight:3},
+        {shape:'addSmall',       weight:5},
+        {shape:'spelledAddTiny', weight:1},
+        {shape:'emojiCountTiny', weight:2},
+        {shape:'diceSolo',       weight:2},
+        {shape:'romanAddTiny',   weight:1},
+      ];
       q = weightedPick(rampWeights(easy, hard, t));
 
     } else if (band === 2) {
-      // Add/sub → small multiplication appears late
+      // Row 2 — single-digit Arabic drops out (boring next to dice and
+      // emoji). Two-operand variants of every format arrive: dice pair,
+      // tiny spelled mult, tiny fraction, tiny numeric mult. Variety
+      // share grows. Add/sub remains the dominant Arabic backbone.
       const easy = [
-        {shape:'addSmall', weight:5}, {shape:'subSmall', weight:5},
-        {shape:'addBig', weight:1},   {shape:'multSmall', weight:0},
+        // Arabic backbone
+        {shape:'addSmall',       weight:5}, {shape:'subSmall',       weight:4},
+        {shape:'addBig',         weight:1},
+        // Format-variety sprinkles continue (raised from row 1)
+        {shape:'spelledAddTiny', weight:2}, {shape:'emojiCountTiny', weight:2},
+        {shape:'diceSolo',       weight:2}, {shape:'romanAddTiny',   weight:2},
+        // Two-operand variants arrive in tiny form
+        {shape:'dicePair',         weight:1},
+        {shape:'spelledMultTiny',  weight:1},
+        {shape:'fractionTiny',     weight:1},
+        {shape:'multSmall',        weight:1},
       ];
       const hard = [
-        {shape:'addSmall', weight:2}, {shape:'subSmall', weight:2},
-        {shape:'addBig', weight:3},   {shape:'multSmall', weight:4},
+        // Arabic backbone fades
+        {shape:'addSmall',       weight:2}, {shape:'subSmall',       weight:2},
+        {shape:'addBig',         weight:2},
+        // Format variety grows
+        {shape:'spelledAddTiny', weight:2}, {shape:'emojiCountTiny', weight:2},
+        {shape:'diceSolo',       weight:1}, {shape:'romanAddTiny',   weight:2},
+        // Two-operand variants more prominent
+        {shape:'dicePair',         weight:2},
+        {shape:'spelledMultTiny',  weight:1},
+        {shape:'fractionTiny',     weight:1},
+        {shape:'multSmall',        weight:2},
+        // Preview of band 3 content
+        {shape:'spelledAdd',       weight:1},
+        {shape:'emojiCount',       weight:1},
       ];
       q = weightedPick(rampWeights(easy, hard, t));
 
     } else if (band === 3) {
-      // Multiplication / doubling → squares appear late
+      // Row 3 — fuller versions of single-operand formats arrive:
+      // spelled subtraction, full emoji counts, Roman subtraction (and
+      // cap raises to VIII). Multiplication & doubling become a major
+      // backbone. The "calm" shape is now multSmall, not single digits.
       const easy = [
-        {shape:'multSmall', weight:5}, {shape:'doubling', weight:4},
-        {shape:'multBig', weight:1},   {shape:'sqSmall', weight:0},
+        // Multiplication backbone
+        {shape:'multSmall',     weight:4}, {shape:'doubling',     weight:3},
+        {shape:'multBig',       weight:1},
+        // Earlier shapes still recur for continuity
+        {shape:'addBig',        weight:1}, {shape:'subSmall',     weight:1},
+        // Tiny variants persist as the "easy" novelty option
+        {shape:'spelledAddTiny',weight:1}, {shape:'emojiCountTiny',weight:1},
+        {shape:'diceSolo',      weight:1}, {shape:'romanAddTiny', weight:1},
+        // Two-operand novelty
+        {shape:'dicePair',         weight:2},
+        {shape:'spelledMultTiny',  weight:1},
+        {shape:'fractionTiny',     weight:1},
+        // Fuller variants arriving
+        {shape:'spelledAdd',       weight:1},
+        {shape:'spelledSub',       weight:1},
+        {shape:'emojiCount',       weight:1},
+        {shape:'romanAdd',         weight:1, args:[8]},
+        {shape:'romanSub',         weight:0, args:[8]},
+        // Squares (preview of band 4)
+        {shape:'sqSmall',          weight:0},
       ];
       const hard = [
-        {shape:'multSmall', weight:2}, {shape:'doubling', weight:2},
-        {shape:'multBig', weight:3},   {shape:'sqSmall', weight:4},
+        {shape:'multSmall',     weight:2}, {shape:'doubling',     weight:2},
+        {shape:'multBig',       weight:2},
+        {shape:'addBig',        weight:1}, {shape:'subSmall',     weight:1},
+        {shape:'spelledAddTiny',weight:1}, {shape:'emojiCountTiny',weight:1},
+        {shape:'diceSolo',      weight:1}, {shape:'romanAddTiny', weight:1},
+        {shape:'dicePair',         weight:2},
+        {shape:'spelledMultTiny',  weight:1},
+        {shape:'fractionTiny',     weight:1},
+        // Fuller variants more prominent
+        {shape:'spelledAdd',       weight:2},
+        {shape:'spelledSub',       weight:2},
+        {shape:'emojiCount',       weight:2},
+        {shape:'romanAdd',         weight:2, args:[8]},
+        {shape:'romanSub',         weight:2, args:[8]},
+        {shape:'sqSmall',          weight:2},
       ];
       q = weightedPick(rampWeights(easy, hard, t));
 
     } else if (band === 4) {
-      // Squares, division → mixed two-op late
+      // Row 4 — first real complexity jumps: mixed-mode equations,
+      // dice-trio sums, dice + arabic, full spelled mult, full fractions,
+      // tiny Roman mult, squares, and division. Roman cap raises to XIII.
       const easy = [
-        {shape:'sqSmall', weight:3},  {shape:'sqMid', weight:2},
-        {shape:'division', weight:4}, {shape:'multBig', weight:2},
-        {shape:'threeOp', weight:0},
+        // Squares & division
+        {shape:'sqSmall',    weight:3}, {shape:'sqMid',     weight:2},
+        {shape:'division',   weight:3}, {shape:'multBig',   weight:2},
+        // Earlier shapes recur
+        {shape:'doubling',     weight:1},
+        {shape:'spelledAdd',   weight:1}, {shape:'emojiCount',  weight:1},
+        {shape:'dicePair',     weight:1},
+        // Three-part shapes
+        {shape:'threeOp',      weight:0},
+        {shape:'spelledThree', weight:1},
+        {shape:'diceTrio',     weight:1},
+        {shape:'emojiMinus',   weight:1},
+        // Mid-tier expansions
+        {shape:'dicePlusArabic',   weight:2},
+        {shape:'spelledMult',      weight:1},
+        {shape:'fraction',         weight:1},
+        {shape:'romanMultTiny',    weight:1},
+        // Roman cap raises to XIII + mixed-mode
+        {shape:'romanAdd',   weight:1, args:[13]},
+        {shape:'romanSub',   weight:1, args:[13]},
+        {shape:'mixedRomanArabic',   weight:2, args:[13]},
+        {shape:'mixedSpelledArabic', weight:2},
       ];
       const hard = [
-        {shape:'sqSmall', weight:1},  {shape:'sqMid', weight:3},
-        {shape:'division', weight:2}, {shape:'multBig', weight:2},
-        {shape:'threeOp', weight:3},
+        {shape:'sqSmall',    weight:1}, {shape:'sqMid',     weight:3},
+        {shape:'division',   weight:2}, {shape:'multBig',   weight:2},
+        {shape:'doubling',     weight:1},
+        {shape:'spelledAdd',   weight:1}, {shape:'emojiCount',  weight:1},
+        {shape:'dicePair',     weight:1},
+        {shape:'threeOp',      weight:3},
+        {shape:'spelledThree', weight:1},
+        {shape:'diceTrio',     weight:1},
+        {shape:'emojiMinus',   weight:1},
+        {shape:'dicePlusArabic',   weight:2},
+        {shape:'spelledMult',      weight:1},
+        {shape:'fraction',         weight:1},
+        {shape:'romanMultTiny',    weight:1},
+        {shape:'romanAdd',   weight:1, args:[13]},
+        {shape:'romanSub',   weight:1, args:[13]},
+        {shape:'mixedRomanArabic',   weight:2, args:[13]},
+        {shape:'mixedSpelledArabic', weight:1},
       ];
       q = weightedPick(rampWeights(easy, hard, t));
 
     } else if (band === 5) {
-      // Multi-step → square/div with offset late
+      // Row 5+ — multi-step territory. Combinations of operations:
+      // multPlus, multMinus, fraction-with-offset, dice × arabic, Roman
+      // multiplication, square offsets, division offsets. Roman cap
+      // raises to XX.
       const easy = [
-        {shape:'multPlus', weight:4},  {shape:'multMinus', weight:4},
-        {shape:'tripleMult', weight:2},{shape:'sqOffset', weight:0},
-        {shape:'divOffset', weight:0},
+        {shape:'multPlus',   weight:4}, {shape:'multMinus',  weight:4},
+        {shape:'tripleMult', weight:2}, {shape:'sqOffset',   weight:0},
+        {shape:'divOffset',  weight:0}, {shape:'threeOp',    weight:1},
+        // Earlier shapes recur
+        {shape:'sqMid',          weight:1},
+        {shape:'multBig',        weight:1},
+        {shape:'fraction',       weight:1},
+        {shape:'dicePlusArabic', weight:1},
+        // New tougher variants
+        {shape:'fractionPlus',     weight:1},
+        {shape:'diceTimesArabic',  weight:1},
+        {shape:'romanMult',        weight:1, args:[5]},
+        // Roman cap raises to XX
+        {shape:'romanAdd',   weight:1, args:[20]},
+        {shape:'romanSub',   weight:1, args:[20]},
+        {shape:'mixedRomanArabic',   weight:1, args:[20]},
       ];
       const hard = [
-        {shape:'multPlus', weight:2},  {shape:'multMinus', weight:2},
-        {shape:'tripleMult', weight:2},{shape:'sqOffset', weight:3},
-        {shape:'divOffset', weight:3},
+        {shape:'multPlus',   weight:2}, {shape:'multMinus',  weight:2},
+        {shape:'tripleMult', weight:2}, {shape:'sqOffset',   weight:3},
+        {shape:'divOffset',  weight:3}, {shape:'threeOp',    weight:1},
+        {shape:'sqMid',          weight:1},
+        {shape:'multBig',        weight:1},
+        {shape:'fraction',       weight:1},
+        {shape:'dicePlusArabic', weight:1},
+        {shape:'fractionPlus',     weight:2},
+        {shape:'diceTimesArabic',  weight:1},
+        {shape:'romanMult',        weight:1, args:[5]},
+        {shape:'romanAdd',   weight:1, args:[20]},
+        {shape:'romanSub',   weight:1, args:[20]},
+        {shape:'mixedRomanArabic',   weight:1, args:[20]},
       ];
       q = weightedPick(rampWeights(easy, hard, t));
 
     } else {
-      // Band 6 — cubes lead, with the brutal n³ ± c emerging late.
-      // Big squares and multi-step keep variety so it's not all cubes.
+      // Band 6 — the deep end. Cubes lead, with cube-offset arriving
+      // late. Earlier novelty shapes recur as "calm" moments amid the
+      // hard math, so the run still feels varied at the top.
       const easy = [
-        {shape:'cube', weight:4},      {shape:'sqBig', weight:3},
-        {shape:'multPlus', weight:2},  {shape:'tripleMult', weight:1},
+        {shape:'cube',       weight:4}, {shape:'sqBig',      weight:3},
+        {shape:'multPlus',   weight:2}, {shape:'tripleMult', weight:1},
         {shape:'cubeOffset', weight:0},
+        // Variety even at the deep end
+        {shape:'fractionPlus',     weight:1},
+        {shape:'diceTimesArabic',  weight:1},
+        {shape:'romanMult',        weight:1, args:[5]},
+        {shape:'mixedRomanArabic', weight:1, args:[20]},
       ];
       const hard = [
-        {shape:'cube', weight:3},      {shape:'sqBig', weight:2},
-        {shape:'multPlus', weight:1},  {shape:'tripleMult', weight:1},
+        {shape:'cube',       weight:3}, {shape:'sqBig',      weight:2},
+        {shape:'multPlus',   weight:1}, {shape:'tripleMult', weight:1},
         {shape:'cubeOffset', weight:3},
+        {shape:'fractionPlus',     weight:1},
+        {shape:'diceTimesArabic',  weight:1},
+        {shape:'romanMult',        weight:1, args:[5]},
+        {shape:'mixedRomanArabic', weight:1, args:[20]},
       ];
       q = weightedPick(rampWeights(easy, hard, t));
     }
@@ -904,47 +1366,6 @@
     };
   }
 
-  // ============ SWAP LOGIC ============
-  // Swaps unlock at Q31 (band 4) — same moment as the new shapes appear.
-  // Probability rises with progress so endgame feels chaotic.
-  function maybeSwap() {
-    const q = state.questionIndex;
-    if (q < 30) {
-      setSwapped(false);
-      return;
-    }
-    // Ramps from 15% at Q31 to 50% by Q60
-    const p = Math.min(0.5, 0.15 + (q - 30) * 0.012);
-    const shouldSwap = state.rng() < p;
-    setSwapped(shouldSwap);
-  }
-
-  function setSwapped(swap) {
-    state.swapped = swap;
-    const left = $('btn-left');
-    const right = $('btn-right');
-    if (swap) {
-      // visually swap the labels and data-answer values
-      left.textContent = 'Even';
-      left.dataset.answer = 'even';
-      left.classList.remove('btn-odd');
-      left.classList.add('btn-even');
-      right.textContent = 'Odd';
-      right.dataset.answer = 'odd';
-      right.classList.remove('btn-even');
-      right.classList.add('btn-odd');
-    } else {
-      left.textContent = 'Odd';
-      left.dataset.answer = 'odd';
-      left.classList.remove('btn-even');
-      left.classList.add('btn-odd');
-      right.textContent = 'Even';
-      right.dataset.answer = 'even';
-      right.classList.remove('btn-odd');
-      right.classList.add('btn-even');
-    }
-  }
-
   // ============ GAME FLOW ============
   function startGame() {
     state.score = 0;
@@ -953,9 +1374,9 @@
     state.streak = 0;
     state.bestStreak = 0;
     state.timeLeft = 60;
+    state.totalDuration = 60;
     state.history = [];
     state.fullHistory = [];
-    state.swapped = false;
     state.startTime = Date.now();
     state.questionIndex = 0;
 
@@ -968,7 +1389,6 @@
       state.rng = Math.random;
     }
 
-    setSwapped(false);
     const playGrid = $('play-grid');
     playGrid.innerHTML = '';
     playGrid.classList.remove('revealed');
@@ -982,20 +1402,26 @@
 
   function tick() {
     const elapsed = (Date.now() - state.startTime) / 1000;
-    state.timeLeft = Math.max(0, 60 - elapsed);
+    state.timeLeft = Math.max(0, state.totalDuration - elapsed);
     const tv = $('timer-value');
     tv.textContent = Math.ceil(state.timeLeft);
     if (state.timeLeft <= 10) tv.classList.add('warn');
     else tv.classList.remove('warn');
-    $('timer-fill').style.transform = `scaleX(${state.timeLeft / 60})`;
+    $('timer-fill').style.transform = `scaleX(${Math.min(1, state.timeLeft / 60)})`;
     if (state.timeLeft <= 0) endGame();
   }
 
   function nextQuestion() {
-    maybeSwap();
     const q = makeQuestion();
     state.currentAnswer = q.answer;
-    $('question').textContent = q.text;
+    const qEl = $('question');
+    qEl.textContent = q.text;
+    // Tag long equations so CSS can use a smaller font size — keeps
+    // spelled-out and emoji-heavy equations from overflowing the screen.
+    const len = q.text.length;
+    if (len > 22)      qEl.dataset.len = 'xlong';
+    else if (len > 12) qEl.dataset.len = 'long';
+    else               qEl.dataset.len = '';
   }
 
   // Adds a colored square to the play-grid. The square is colored
@@ -1066,7 +1492,7 @@
     // (right or wrong) so the headline matches what's visible in the grid.
     const totalAnswered = state.history.length;
     const highestTier = totalAnswered > 0
-      ? Math.ceil(totalAnswered / 10)
+      ? Math.ceil(totalAnswered / GRID_COLS)
       : 1;
 
     // Headline suffix: reward perfection, gently call out brute-forcing.
@@ -1082,6 +1508,15 @@
     $('stat-score').textContent = state.score;
     $('stat-correct').textContent = state.correct;
     $('stat-wrong').textContent = state.wrong;
+
+    // Record this run against personal bests (localStorage). Daily only —
+    // practice runs are unlimited, so recording them would trivialize the
+    // record. Practice mode is genuinely just practice; no trophy chase.
+    const flags = (state.mode === 'daily' && totalAnswered > 0)
+      ? stats.record(state.mode, state.score, highestTier)
+      : { newBestScore: false, newBestRow: false };
+    $('stat-score-label').classList.toggle('new-best', flags.newBestScore);
+    $('end-headline').classList.toggle('new-best-row', flags.newBestRow);
     // Populate the end-screen square grid with real DOM elements
     // matching the play-grid we just revealed. The squares are colored
     // identically; this is the "permanent" version on the end screen
@@ -1102,16 +1537,19 @@
       ? `FUDGY MATHS №${state.dailyNumber}`
       : 'FUDGY MATHS';
 
-    // Daily mode: replace "Again" with a friendly come-back nudge,
-    // leaving Share as the only action. Practice mode keeps Again.
+    // Daily mode: re-label "Again" as "Try practice mode" so players can
+    // jump into unlimited practice immediately. Come-back nudge sits below.
+    // Practice mode keeps the plain "Again" label for instant replays.
     const againBtn = $('again-btn');
     const actionsRow = $('end-actions-row');
     const comeBack = $('come-back');
     if (state.mode === 'daily') {
-      againBtn.hidden = true;
-      actionsRow.style.gridTemplateColumns = '1fr';
+      againBtn.textContent = 'Try practice mode';
+      againBtn.hidden = false;
+      actionsRow.style.gridTemplateColumns = '1fr 1fr';
       comeBack.hidden = false;
     } else {
+      againBtn.textContent = 'Again';
       againBtn.hidden = false;
       actionsRow.style.gridTemplateColumns = '1fr 1fr';
       comeBack.hidden = true;
@@ -1120,9 +1558,8 @@
     showScreen('end');
   }
 
-  // Build a 2D grid: 10 squares per row. The final row is left
+  // Build a 2D grid: GRID_COLS squares per row. The final row is left
   // incomplete to honestly reflect where the buzzer caught you.
-  const GRID_COLS = 10;
   function buildEmojiGrid() {
     if (state.history.length === 0) return '·····';
     const squares = state.history.map(c => c ? '🟩' : '🟥');
@@ -1160,7 +1597,7 @@
     const grid = buildEmojiGrid();
     const totalAnswered = state.history.length;
     const highestTier = totalAnswered > 0
-      ? Math.ceil(totalAnswered / 10)
+      ? Math.ceil(totalAnswered / GRID_COLS)
       : 1;
     // Share version uses "I" instead of "You" — the player is now
     // the one telling the story, not being told it.
@@ -1172,7 +1609,10 @@
     let suffix = '';
     if (state.wrong === 0 && state.correct > 0) suffix = ' Perfectly 😎';
     else if (total >= 10 && wrongRatio > 0.3) suffix = ' Poorly 😅';
-    const headline = `I made row ${highestTier}!${suffix}`;
+    // Practice-mode shares are tagged in the headline so recipients know
+    // not to compare against their daily.
+    const modeTag = state.mode === 'practice' ? ' in practice mode' : '';
+    const headline = `I made row ${highestTier}${modeTag}!${suffix}`;
     const text =
 `${headline}
 
@@ -1231,7 +1671,19 @@ ${footer}`;
 
   // ============ EVENTS ============
   $('start-btn').addEventListener('click', startGame);
-  $('again-btn').addEventListener('click', startGame);
+  $('again-btn').addEventListener('click', () => {
+    // From daily end screen, "Again" means "jump into practice mode."
+    // From practice end screen, it means "replay practice."
+    if (state.mode === 'daily') {
+      state.mode = 'practice';
+      // Update the start-screen toggle to reflect the new mode in case
+      // the player exits later — keeps internal state consistent.
+      document.querySelectorAll('.mode-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === 'practice');
+      });
+    }
+    startGame();
+  });
   $('share-btn').addEventListener('click', share);
 
   // Mode toggle
@@ -1254,7 +1706,7 @@ ${footer}`;
   }
   updateStartFoot();
 
-  // delegate answer taps so swapped buttons still work
+  // delegate answer taps via dataset.answer for clean event handling
   $('answer-row').addEventListener('click', e => {
     const btn = e.target.closest('.answer-btn');
     if (!btn) return;
