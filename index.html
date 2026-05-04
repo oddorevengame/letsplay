@@ -1089,6 +1089,140 @@
       const opWord = op === '+' ? 'plus' : 'minus';
       return { text: `${left} ${opWord} ${right}`, value };
     },
+
+    // ===== HALVING (sibling to doubling) =====
+    halving: () => {
+      const q = rand(5, 25);
+      return { text: `${q * 2} ÷ 2`, value: q };
+    },
+
+    // ===== DOUBLING IN OTHER FORMATS =====
+    spelledDoubling: () => {
+      const n = rand(7, 19);
+      return { text: `two times ${word(n)}`, value: 2 * n };
+    },
+    romanDoubling: () => {
+      // n in 3-12; written as "2 × <Roman>" so the Arabic doubler is
+      // always the explicit operator, the Roman is the operand.
+      const n = rand(3, 12);
+      return { text: `2 × ${toRoman(n)}`, value: 2 * n };
+    },
+
+    // ===== MORE DICE =====
+    diceSubtract: () => {
+      // Ensure non-negative result by ordering operands
+      const a = rand(2, 6), b = rand(1, a);
+      return { text: `${DICE[a]} − ${DICE[b]}`, value: a - b };
+    },
+    dicePairPlusArabic: () => {
+      const a = rand(1, 6), b = rand(1, 6), c = rand(1, 6);
+      return { text: `${DICE[a]} + ${DICE[b]} + ${c}`, value: a + b + c };
+    },
+    diceSquared: () => {
+      const n = rand(2, 6);
+      return { text: `${DICE[n]}²`, value: n * n };
+    },
+
+    // ===== FRACTION EXPANSIONS =====
+    fractionRoman: () => {
+      // Roman numerator over Arabic divisor — clean whole result
+      const den = 2;
+      const q = rand(2, 6);
+      const num = q * den;  // <= 12, so toRoman gives at most XII
+      return { text: `${toRoman(num)}/${den}`, value: q };
+    },
+    fractionTimes: () => {
+      const den = rand(2, 4);
+      const q = rand(2, 6);
+      const num = q * den;
+      const c = rand(2, 5);
+      return { text: `${num}/${den} × ${c}`, value: q * c };
+    },
+    fractionPlusFraction: () => {
+      const d1 = rand(2, 4), d2 = rand(2, 4);
+      const q1 = rand(2, 6), q2 = rand(2, 6);
+      return { text: `${q1 * d1}/${d1} + ${q2 * d2}/${d2}`, value: q1 + q2 };
+    },
+
+    // ===== SPELLED EXPANSIONS =====
+    spelledTripleMult: () => {
+      const a = rand(2, 4), b = rand(2, 4), c = rand(2, 3);
+      return { text: `${word(a)} times ${word(b)} times ${word(c)}`, value: a * b * c };
+    },
+    spelledSquare: () => {
+      const n = rand(3, 8);
+      return { text: `${word(n)} squared`, value: n * n };
+    },
+    spelledCube: () => {
+      const n = rand(2, 4);
+      return { text: `${word(n)} cubed`, value: n * n * n };
+    },
+
+    // ===== ROMAN EXPANSIONS =====
+    romanSquare: () => {
+      const n = rand(2, 7);  // result up to 49, but only the Roman is shown
+      return { text: `${toRoman(n)}²`, value: n * n };
+    },
+    romanCube: () => {
+      const n = rand(2, 4);
+      return { text: `${toRoman(n)}³`, value: n * n * n };
+    },
+    romanTriple: () => {
+      // Three Roman numerals summed. Cap kept low to control width.
+      const cap = 8;
+      const a = rand(1, cap), b = rand(1, cap), c = rand(1, cap);
+      return { text: `${toRoman(a)} + ${toRoman(b)} + ${toRoman(c)}`, value: a + b + c };
+    },
+
+    // ===== MORE MIXED-MODE =====
+    mixedRomanSpelled: () => {
+      // Roman + spelled (no Arabic). Two formats but neither is "plain."
+      const a = rand(1, 9), b = rand(2, 9);
+      const op = state.rng() < 0.5 ? 'plus' : 'minus';
+      const romanFirst = state.rng() < 0.5;
+      const left  = romanFirst ? toRoman(a) : word(b);
+      const right = romanFirst ? word(b)    : toRoman(a);
+      const value = romanFirst
+        ? (op === 'plus' ? a + b : a - b)
+        : (op === 'plus' ? b + a : b - a);
+      if (value < 0) {
+        return { text: `${left} plus ${right}`, value: a + b };
+      }
+      return { text: `${left} ${op} ${right}`, value };
+    },
+    mixedDiceSpelled: () => {
+      const a = rand(1, 6), b = rand(2, 9);
+      const op = state.rng() < 0.5 ? 'plus' : 'minus';
+      const value = op === 'plus' ? a + b : Math.abs(a - b);
+      // Ensure dice on left for visual rhythm
+      const opWord = (op === 'minus' && a < b) ? 'plus' : op;
+      const finalValue = opWord === 'plus' ? a + b : a - b;
+      return { text: `${DICE[a]} ${opWord} ${word(b)}`, value: finalValue };
+    },
+    mixedDiceRoman: () => {
+      const a = rand(1, 6), b = rand(2, 9);
+      const op = state.rng() < 0.5 ? '+' : '−';
+      const opSafe = (op === '−' && a < b) ? '+' : op;
+      const value = opSafe === '+' ? a + b : a - b;
+      return { text: `${DICE[a]} ${opSafe} ${toRoman(b)}`, value };
+    },
+    mixedThreeOp: () => {
+      // Three operands across mixed formats: Arabic + Roman + Arabic, or
+      // Roman − Arabic + Arabic, etc. Constrained so result is non-negative.
+      const a = rand(2, 9), b = rand(1, 8), c = rand(1, 6);
+      // Patterns: a + R(b) + c | R(a) + b + c | a − R(b) + c (a > b)
+      const r = state.rng();
+      if (r < 0.34) {
+        return { text: `${a} + ${toRoman(b)} + ${c}`, value: a + b + c };
+      } else if (r < 0.67) {
+        return { text: `${toRoman(a)} + ${b} + ${c}`, value: a + b + c };
+      } else {
+        // Subtraction variant — ensure a > b for non-negative
+        const big = Math.max(a, b) + 1;
+        const small = Math.min(a, b);
+        return { text: `${big} − ${toRoman(small)} + ${c}`, value: big - small + c };
+      }
+    },
   };
 
   // Weighted pick from an [{shape, weight, args?}] list. The optional
@@ -1179,6 +1313,9 @@
         {shape:'spelledMultTiny',  weight:1},
         {shape:'fractionTiny',     weight:1},
         {shape:'multSmall',        weight:1},
+        // New gentle expansions
+        {shape:'halving',          weight:1},
+        {shape:'spelledDoubling',  weight:1},
       ];
       const hard = [
         // Arabic backbone fades
@@ -1192,6 +1329,9 @@
         {shape:'spelledMultTiny',  weight:1},
         {shape:'fractionTiny',     weight:1},
         {shape:'multSmall',        weight:2},
+        // New gentle expansions persist
+        {shape:'halving',          weight:1},
+        {shape:'spelledDoubling',  weight:1},
         // Preview of band 3 content
         {shape:'spelledAdd',       weight:1},
         {shape:'emojiCount',       weight:1},
@@ -1209,6 +1349,7 @@
         {shape:'multBig',       weight:1},
         // Earlier shapes still recur for continuity
         {shape:'addBig',        weight:1}, {shape:'subSmall',     weight:1},
+        {shape:'halving',       weight:1}, {shape:'spelledDoubling', weight:1},
         // Tiny variants persist as the "easy" novelty option
         {shape:'spelledAddTiny',weight:1}, {shape:'emojiCountTiny',weight:1},
         {shape:'diceSolo',      weight:1}, {shape:'romanAddTiny', weight:1},
@@ -1216,6 +1357,9 @@
         {shape:'dicePair',         weight:2},
         {shape:'spelledMultTiny',  weight:1},
         {shape:'fractionTiny',     weight:1},
+        // New band-3 expansions
+        {shape:'romanDoubling',    weight:1},
+        {shape:'diceSubtract',     weight:1},
         // Fuller variants arriving
         {shape:'spelledAdd',       weight:1},
         {shape:'spelledSub',       weight:1},
@@ -1229,11 +1373,15 @@
         {shape:'multSmall',     weight:2}, {shape:'doubling',     weight:2},
         {shape:'multBig',       weight:2},
         {shape:'addBig',        weight:1}, {shape:'subSmall',     weight:1},
+        {shape:'halving',       weight:1}, {shape:'spelledDoubling', weight:1},
         {shape:'spelledAddTiny',weight:1}, {shape:'emojiCountTiny',weight:1},
         {shape:'diceSolo',      weight:1}, {shape:'romanAddTiny', weight:1},
         {shape:'dicePair',         weight:2},
         {shape:'spelledMultTiny',  weight:1},
         {shape:'fractionTiny',     weight:1},
+        // New band-3 expansions persist
+        {shape:'romanDoubling',    weight:1},
+        {shape:'diceSubtract',     weight:1},
         // Fuller variants more prominent
         {shape:'spelledAdd',       weight:2},
         {shape:'spelledSub',       weight:2},
@@ -1248,6 +1396,9 @@
       // Row 4 — first real complexity jumps: mixed-mode equations,
       // dice-trio sums, dice + arabic, full spelled mult, full fractions,
       // tiny Roman mult, squares, and division. Roman cap raises to XIII.
+      // Plus a major expansion of cross-format mixed shapes — Roman with
+      // spelled, dice with spelled, dice with Roman, and squares of
+      // alternate formats.
       const easy = [
         // Squares & division
         {shape:'sqSmall',    weight:3}, {shape:'sqMid',     weight:2},
@@ -1256,6 +1407,7 @@
         {shape:'doubling',     weight:1},
         {shape:'spelledAdd',   weight:1}, {shape:'emojiCount',  weight:1},
         {shape:'dicePair',     weight:1},
+        {shape:'romanDoubling', weight:1}, {shape:'diceSubtract', weight:1},
         // Three-part shapes
         {shape:'threeOp',      weight:0},
         {shape:'spelledThree', weight:1},
@@ -1266,6 +1418,15 @@
         {shape:'spelledMult',      weight:1},
         {shape:'fraction',         weight:1},
         {shape:'romanMultTiny',    weight:1},
+        // New band-4 expansions
+        {shape:'romanSquare',         weight:1},
+        {shape:'spelledSquare',       weight:1},
+        {shape:'fractionRoman',       weight:1},
+        {shape:'romanTriple',         weight:1},
+        {shape:'dicePairPlusArabic',  weight:1},
+        {shape:'mixedRomanSpelled',   weight:1},
+        {shape:'mixedDiceSpelled',    weight:1},
+        {shape:'mixedDiceRoman',      weight:1},
         // Roman cap raises to XIII + mixed-mode
         {shape:'romanAdd',   weight:1, args:[13]},
         {shape:'romanSub',   weight:1, args:[13]},
@@ -1278,6 +1439,7 @@
         {shape:'doubling',     weight:1},
         {shape:'spelledAdd',   weight:1}, {shape:'emojiCount',  weight:1},
         {shape:'dicePair',     weight:1},
+        {shape:'romanDoubling', weight:1}, {shape:'diceSubtract', weight:1},
         {shape:'threeOp',      weight:3},
         {shape:'spelledThree', weight:1},
         {shape:'diceTrio',     weight:1},
@@ -1286,6 +1448,15 @@
         {shape:'spelledMult',      weight:1},
         {shape:'fraction',         weight:1},
         {shape:'romanMultTiny',    weight:1},
+        // New band-4 expansions persist
+        {shape:'romanSquare',         weight:1},
+        {shape:'spelledSquare',       weight:1},
+        {shape:'fractionRoman',       weight:1},
+        {shape:'romanTriple',         weight:1},
+        {shape:'dicePairPlusArabic',  weight:1},
+        {shape:'mixedRomanSpelled',   weight:1},
+        {shape:'mixedDiceSpelled',    weight:1},
+        {shape:'mixedDiceRoman',      weight:1},
         {shape:'romanAdd',   weight:1, args:[13]},
         {shape:'romanSub',   weight:1, args:[13]},
         {shape:'mixedRomanArabic',   weight:2, args:[13]},
@@ -1311,6 +1482,12 @@
         {shape:'fractionPlus',     weight:1},
         {shape:'diceTimesArabic',  weight:1},
         {shape:'romanMult',        weight:1, args:[5]},
+        // New band-5 expansions
+        {shape:'diceSquared',          weight:1},
+        {shape:'fractionTimes',        weight:1},
+        {shape:'fractionPlusFraction', weight:1},
+        {shape:'spelledTripleMult',    weight:1},
+        {shape:'mixedThreeOp',         weight:1},
         // Roman cap raises to XX
         {shape:'romanAdd',   weight:1, args:[20]},
         {shape:'romanSub',   weight:1, args:[20]},
@@ -1327,6 +1504,12 @@
         {shape:'fractionPlus',     weight:2},
         {shape:'diceTimesArabic',  weight:1},
         {shape:'romanMult',        weight:1, args:[5]},
+        // New band-5 expansions persist
+        {shape:'diceSquared',          weight:1},
+        {shape:'fractionTimes',        weight:1},
+        {shape:'fractionPlusFraction', weight:1},
+        {shape:'spelledTripleMult',    weight:1},
+        {shape:'mixedThreeOp',         weight:1},
         {shape:'romanAdd',   weight:1, args:[20]},
         {shape:'romanSub',   weight:1, args:[20]},
         {shape:'mixedRomanArabic',   weight:1, args:[20]},
@@ -1336,7 +1519,8 @@
     } else {
       // Band 6 — the deep end. Cubes lead, with cube-offset arriving
       // late. Earlier novelty shapes recur as "calm" moments amid the
-      // hard math, so the run still feels varied at the top.
+      // hard math, so the run still feels varied at the top. Roman and
+      // spelled cubes appear as endgame curveballs.
       const easy = [
         {shape:'cube',       weight:4}, {shape:'sqBig',      weight:3},
         {shape:'multPlus',   weight:2}, {shape:'tripleMult', weight:1},
@@ -1344,8 +1528,14 @@
         // Variety even at the deep end
         {shape:'fractionPlus',     weight:1},
         {shape:'diceTimesArabic',  weight:1},
+        {shape:'diceSquared',      weight:1},
         {shape:'romanMult',        weight:1, args:[5]},
         {shape:'mixedRomanArabic', weight:1, args:[20]},
+        // Endgame curveballs in alternate formats
+        {shape:'romanCube',        weight:1},
+        {shape:'spelledCube',      weight:1},
+        {shape:'spelledTripleMult',weight:1},
+        {shape:'mixedThreeOp',     weight:1},
       ];
       const hard = [
         {shape:'cube',       weight:3}, {shape:'sqBig',      weight:2},
@@ -1353,8 +1543,13 @@
         {shape:'cubeOffset', weight:3},
         {shape:'fractionPlus',     weight:1},
         {shape:'diceTimesArabic',  weight:1},
+        {shape:'diceSquared',      weight:1},
         {shape:'romanMult',        weight:1, args:[5]},
         {shape:'mixedRomanArabic', weight:1, args:[20]},
+        {shape:'romanCube',        weight:1},
+        {shape:'spelledCube',      weight:1},
+        {shape:'spelledTripleMult',weight:1},
+        {shape:'mixedThreeOp',     weight:1},
       ];
       q = weightedPick(rampWeights(easy, hard, t));
     }
